@@ -40,15 +40,7 @@ export default function SuggestionsHub() {
   });
 
   const handleInvite = (eventId: number, personId: number) => {
-    createInvite.mutate({
-      data: {
-        eventId, // Wait, InvitationInput schema from API expects eventId? 
-        // Let's check API schema. Oh, useCreateInvitation has a specific shape. 
-        // We will pass what we can or just fire the toast for the prototype.
-        personId,
-        notes: 'Suggested from hub'
-      } as any // using any for missing params in generated types if needed
-    });
+    createInvite.mutate({ id: eventId, data: { personId, notes: 'Suggested from meetup hub' } as any });
   };
 
   const handleScheduleVirtual = (personId: number, leaderId?: number) => {
