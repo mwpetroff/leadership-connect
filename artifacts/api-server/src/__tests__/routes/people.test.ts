@@ -1,4 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+// Reset all mocks before every test so Once-queue values don't bleed across
+// describe blocks (e.g. POST beforeEach leaving unconsumed queued values).
+beforeEach(() => { vi.resetAllMocks(); });
 import request from 'supertest';
 
 // ─── Hoisted mock setup ───────────────────────────────────────────────────────
@@ -53,11 +57,41 @@ vi.mock('@workspace/db', () => ({
     homeCity: 'homeCity',
     homeState: 'homeState',
   },
-  eventsTable: {},
+  eventsTable: {
+    id: 'id',
+    startDate: 'startDate',
+    name: 'name',
+    description: 'description',
+    location: 'location',
+    city: 'city',
+    state: 'state',
+    endDate: 'endDate',
+    eventType: 'eventType',
+    createdAt: 'createdAt',
+  },
   eventLeadersTable: {},
-  invitationsTable: {},
-  virtualMeetingsTable: {},
-  virtualMeetingParticipantsTable: {},
+  invitationsTable: {
+    id: 'id',
+    eventId: 'eventId',
+    personId: 'personId',
+    status: 'status',
+    notes: 'notes',
+    createdAt: 'createdAt',
+    updatedAt: 'updatedAt',
+  },
+  virtualMeetingsTable: {
+    id: 'id',
+    status: 'status',
+    scheduledDate: 'scheduledDate',
+    title: 'title',
+    notes: 'notes',
+    hostId: 'hostId',
+    createdAt: 'createdAt',
+  },
+  virtualMeetingParticipantsTable: {
+    meetingId: 'meetingId',
+    personId: 'personId',
+  },
 }));
 
 // ─── Import app after mocks are registered ────────────────────────────────────
@@ -187,5 +221,113 @@ describe('DELETE /api/people/:id', () => {
     mockDb.delete.mockReturnValue(makeChain([]));
     const res = await request(app).delete('/api/people/999');
     expect(res.status).toBe(404);
+  });
+});
+
+// ─── Engagement endpoint ──────────────────────────────────────────────────────
+
+const mockInvitationWithEvent = {
+  id: 10,
+  eventId: 5,
+  personId: 1,
+  status: 'attended',
+  notes: null,
+  createdAt: '2026-01-01T00:00:00.000Z',
+  updatedAt: '2026-01-01T00:00:00.000Z',
+  event: {
+    id: 5,
+    name: 'Austin Summit',
+    description: null,
+    location: 'Convention Center',
+    city: 'Austin',
+    state: 'TX',
+    startDate: '2025-06-01',
+    endDate: '2025-06-02',
+    eventType: 'summit',
+    createdAt: '2025-01-01T00:00:00.000Z',
+  },
+};
+
+const mockVirtualMeeting = {
+  id: 7,
+  title: '1:1 Check-in',
+  status: 'completed',
+  scheduledDate: '2025-09-15',
+  hostId: null,
+  notes: null,
+  createdAt: '2025-09-01T00:00:00.000Z',
+  updatedAt: '2025-09-01T00:00:00.000Z',
+};
+
+describe('GET /api/people/:id/engagement', () => {
+  it('returns 400 for non-numeric id', async () => {
+    const res = await request(app).get('/api/people/abc/engagement');
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 404 when person not found', async () => {
+    mockDb.select.mockReturnValue(makeChain([]));
+    const res = await request(app).get('/api/people/999/engagement');
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 200 with empty engagement for a new person', async () => {
+    // call 1: person lookup → found
+    // call 2: invitations join → empty
+    // call 3: virtual participations → empty
+    mockDb.select
+      .mockReturnValueOnce(makeChain([mockPerson]))  // person
+      .mockReturnValueOnce(makeChain([]))             // invitations
+      .mockReturnValueOnce(makeChain([]));            // participations
+
+    const res = await request(app).get('/api/people/1/engagement');
+    expect(res.status).toBe(200);
+    expect(res.body.person).toMatchObject({ id: 1, name: 'Jane Smith' });
+    expect(res.body.invitations).toHaveLength(0);
+    expect(res.body.virtualMeetings).toHaveLength(0);
+    expect(res.body.daysSinceLastTouchpoint).toBeNull();
+    expect(res.body.totalInPersonAttended).toBe(0);
+    expect(res.body.totalVirtualCompleted).toBe(0);
+  });
+
+  it('computes daysSinceLastTouchpoint from an attended event', async () => {
+    mockDb.select
+      .mockReturnValueOnce(makeChain([mockPerson]))              // person
+      .mockReturnValueOnce(makeChain([mockInvitationWithEvent])) // invitations (1 attended)
+      .mockReturnValueOnce(makeChain([]));                       // participations
+
+    const res = await request(app).get('/api/people/1/engagement');
+    expect(res.status).toBe(200);
+    expect(res.body.totalInPersonAttended).toBe(1);
+    expect(typeof res.body.daysSinceLastTouchpoint).toBe('number');
+    expect(res.body.daysSinceLastTouchpoint).toBeGreaterThan(0);
+  });
+
+  it('includes virtual meetings when the person is a participant', async () => {
+    mockDb.select
+      .mockReturnValueOnce(makeChain([mockPerson]))               // person
+      .mockReturnValueOnce(makeChain([]))                          // invitations
+      .mockReturnValueOnce(makeChain([{ meetingId: 7 }]))         // participations
+      .mockReturnValueOnce(makeChain([mockVirtualMeeting]));      // virtual meetings (meetingIds.length===1)
+
+    const res = await request(app).get('/api/people/1/engagement');
+    expect(res.status).toBe(200);
+    expect(res.body.virtualMeetings).toHaveLength(1);
+    expect(res.body.totalVirtualCompleted).toBe(1);
+    expect(typeof res.body.daysSinceLastTouchpoint).toBe('number');
+  });
+
+  it('ignores non-attended invitations for daysSinceLastTouchpoint', async () => {
+    const pendingInv = { ...mockInvitationWithEvent, status: 'invited' };
+    mockDb.select
+      .mockReturnValueOnce(makeChain([mockPerson]))    // person
+      .mockReturnValueOnce(makeChain([pendingInv]))    // invitation (invited, not attended)
+      .mockReturnValueOnce(makeChain([]));             // participations
+
+    const res = await request(app).get('/api/people/1/engagement');
+    expect(res.status).toBe(200);
+    // 'invited' status doesn't count as a touchpoint
+    expect(res.body.daysSinceLastTouchpoint).toBeNull();
+    expect(res.body.totalInPersonAttended).toBe(0);
   });
 });

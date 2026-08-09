@@ -21,6 +21,10 @@ import {
 
 const router: IRouter = Router();
 
+/** Convert a Zod-coerced Date (or already-string) to 'YYYY-MM-DD' for Drizzle date columns. */
+const toDateStr = (d: Date | string): string =>
+  d instanceof Date ? d.toISOString().split("T")[0] : d;
+
 async function eventWithCounts(event: typeof eventsTable.$inferSelect) {
   const leaders = await db
     .select()
@@ -73,7 +77,14 @@ router.post("/events", async (req, res): Promise<void> => {
     return;
   }
 
-  const [event] = await db.insert(eventsTable).values(parsed.data).returning();
+  const [event] = await db
+    .insert(eventsTable)
+    .values({
+      ...parsed.data,
+      startDate: toDateStr(parsed.data.startDate),
+      endDate: parsed.data.endDate ? toDateStr(parsed.data.endDate) : undefined,
+    })
+    .returning();
   res.status(201).json(await eventWithCounts(event));
 });
 
@@ -106,9 +117,16 @@ router.patch("/events/:id", async (req, res): Promise<void> => {
     return;
   }
 
+  const { startDate, endDate, ...restData } = parsed.data;
+  const setData = {
+    ...restData,
+    ...(startDate !== undefined ? { startDate: toDateStr(startDate) } : {}),
+    ...(endDate !== undefined ? { endDate: endDate ? toDateStr(endDate) : undefined } : {}),
+  };
+
   const [event] = await db
     .update(eventsTable)
-    .set(parsed.data)
+    .set(setData)
     .where(eq(eventsTable.id, params.data.id))
     .returning();
 

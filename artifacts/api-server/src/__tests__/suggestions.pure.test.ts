@@ -1,55 +1,23 @@
 /**
- * Pure-logic unit tests for the suggestion matching rules.
- * These test the core business rules in isolation, without hitting the DB.
+ * Pure-logic unit tests for the suggestion engine.
+ *
+ * These import and exercise the REAL exported functions from
+ * src/lib/suggestion-logic.ts — no local mirrors or stubs.
+ * Any change to the production matching rules will be caught here.
  */
 
 import { describe, it, expect } from 'vitest';
+import {
+  NEEDS_TOUCHPOINT_DAYS,
+  isSameState,
+  isSameCity,
+  needsVirtualTouchpoint,
+  sortByEventGap,
+  sortByTouchpointGap,
+  filterNearbyStaff,
+} from '../lib/suggestion-logic';
 
-// ─── Extracted pure logic (mirrors suggestions.ts) ───────────────────────────
-
-const NEEDS_TOUCHPOINT_DAYS = 90;
-
-/** Returns true if the person is in the same state as the event. */
-function isSameState(personState: string, eventState: string): boolean {
-  return personState.toLowerCase() === eventState.toLowerCase();
-}
-
-/** Returns true if the person is in the same city as the event. */
-function isSameCity(personCity: string, eventCity: string): boolean {
-  return personCity.toLowerCase() === eventCity.toLowerCase();
-}
-
-/** Returns true if a staff member qualifies for a virtual touchpoint suggestion. */
-function needsVirtualTouchpoint(daysSinceLastTouchpoint: number | null): boolean {
-  return daysSinceLastTouchpoint === null || daysSinceLastTouchpoint >= NEEDS_TOUCHPOINT_DAYS;
-}
-
-/** Comparator: sort staff by engagement gap (null = never engaged → top). */
-function sortByEngagementGap(
-  a: { days: number | null },
-  b: { days: number | null }
-): number {
-  if (a.days === null && b.days === null) return 0;
-  if (a.days === null) return -1;
-  if (b.days === null) return 1;
-  return b.days - a.days; // larger gap first
-}
-
-/** Filter staff eligible for a meetup at this event. */
-function filterNearbyStaff(
-  staff: { id: number; homeState: string; homeCity: string; role: string }[],
-  event: { state: string; city: string },
-  invitedIds: Set<number>
-): { id: number; homeState: string; homeCity: string; role: string }[] {
-  return staff.filter(
-    (s) =>
-      s.role === 'staff' &&
-      isSameState(s.homeState, event.state) &&
-      !invitedIds.has(s.id)
-  );
-}
-
-// ─── Tests ───────────────────────────────────────────────────────────────────
+// ─── isSameState ─────────────────────────────────────────────────────────────
 
 describe('isSameState', () => {
   it('matches exact same state', () => {
@@ -67,6 +35,8 @@ describe('isSameState', () => {
   });
 });
 
+// ─── isSameCity ──────────────────────────────────────────────────────────────
+
 describe('isSameCity', () => {
   it('matches exact same city', () => {
     expect(isSameCity('Austin', 'Austin')).toBe(true);
@@ -83,13 +53,16 @@ describe('isSameCity', () => {
   });
 });
 
+// ─── needsVirtualTouchpoint ──────────────────────────────────────────────────
+
 describe('needsVirtualTouchpoint', () => {
-  it('returns true when days is null (never engaged)', () => {
-    expect(needsVirtualTouchpoint(null)).toBe(true);
+  it(`uses ${NEEDS_TOUCHPOINT_DAYS} days as the threshold`, () => {
+    expect(needsVirtualTouchpoint(NEEDS_TOUCHPOINT_DAYS)).toBe(true);    // exactly at threshold
+    expect(needsVirtualTouchpoint(NEEDS_TOUCHPOINT_DAYS - 1)).toBe(false); // one day under
   });
 
-  it('returns true when days equals the threshold exactly', () => {
-    expect(needsVirtualTouchpoint(90)).toBe(true);
+  it('returns true when days is null (never engaged)', () => {
+    expect(needsVirtualTouchpoint(null)).toBe(true);
   });
 
   it('returns true when days exceed the threshold', () => {
@@ -104,29 +77,75 @@ describe('needsVirtualTouchpoint', () => {
   });
 });
 
-describe('sortByEngagementGap', () => {
-  it('puts null (never engaged) before any numeric gap', () => {
+// ─── sortByEventGap ──────────────────────────────────────────────────────────
+
+describe('sortByEventGap', () => {
+  it('puts null (never attended) before any numeric gap', () => {
+    const list = [
+      { daysSinceLastEvent: 30 },
+      { daysSinceLastEvent: null },
+      { daysSinceLastEvent: 60 },
+    ];
+    list.sort(sortByEventGap);
+    expect(list[0].daysSinceLastEvent).toBeNull();
+  });
+
+  it('sorts larger gaps before smaller ones', () => {
+    const list = [
+      { daysSinceLastEvent: 30 },
+      { daysSinceLastEvent: 120 },
+      { daysSinceLastEvent: 60 },
+    ];
+    list.sort(sortByEventGap);
+    expect(list[0].daysSinceLastEvent).toBe(120);
+    expect(list[1].daysSinceLastEvent).toBe(60);
+    expect(list[2].daysSinceLastEvent).toBe(30);
+  });
+
+  it('handles two nulls as equal', () => {
+    expect(sortByEventGap({ daysSinceLastEvent: null }, { daysSinceLastEvent: null })).toBe(0);
+  });
+
+  it('puts null before 0-day gap', () => {
+    expect(sortByEventGap({ daysSinceLastEvent: null }, { daysSinceLastEvent: 0 })).toBe(-1);
+  });
+
+  it('puts b-null before a-numeric (b rises)', () => {
+    expect(sortByEventGap({ daysSinceLastEvent: 10 }, { daysSinceLastEvent: null })).toBe(1);
+  });
+});
+
+// ─── sortByTouchpointGap ─────────────────────────────────────────────────────
+
+describe('sortByTouchpointGap', () => {
+  it('puts null (never touched) before any numeric gap', () => {
     const list = [{ days: 30 }, { days: null }, { days: 60 }];
-    list.sort(sortByEngagementGap);
+    list.sort(sortByTouchpointGap);
     expect(list[0].days).toBeNull();
   });
 
   it('sorts larger gaps before smaller ones', () => {
     const list = [{ days: 30 }, { days: 120 }, { days: 60 }];
-    list.sort(sortByEngagementGap);
+    list.sort(sortByTouchpointGap);
     expect(list[0].days).toBe(120);
     expect(list[1].days).toBe(60);
     expect(list[2].days).toBe(30);
   });
 
   it('handles two nulls as equal', () => {
-    expect(sortByEngagementGap({ days: null }, { days: null })).toBe(0);
+    expect(sortByTouchpointGap({ days: null }, { days: null })).toBe(0);
   });
 
   it('puts null before 0-day gap', () => {
-    expect(sortByEngagementGap({ days: null }, { days: 0 })).toBe(-1);
+    expect(sortByTouchpointGap({ days: null }, { days: 0 })).toBe(-1);
+  });
+
+  it('puts b-null before a-numeric', () => {
+    expect(sortByTouchpointGap({ days: 10 }, { days: null })).toBe(1);
   });
 });
+
+// ─── filterNearbyStaff ───────────────────────────────────────────────────────
 
 describe('filterNearbyStaff', () => {
   const staff = [
@@ -140,22 +159,25 @@ describe('filterNearbyStaff', () => {
 
   it('includes only staff in the same state', () => {
     const result = filterNearbyStaff(staff, event, new Set());
-    expect(result.map((s) => s.id)).toEqual(expect.arrayContaining([1, 2]));
-    expect(result.some((s) => s.id === 3)).toBe(false); // CA excluded
+    const ids = result.map((s) => s.id);
+    expect(ids).toContain(1);
+    expect(ids).toContain(2);
+    expect(ids).not.toContain(3); // CA excluded
   });
 
   it('excludes executives and secondary leaders', () => {
     const result = filterNearbyStaff(staff, event, new Set());
-    expect(result.some((s) => s.role !== 'staff')).toBe(false);
+    expect(result.every((s) => s.role === 'staff')).toBe(true);
   });
 
   it('excludes already-invited staff', () => {
     const result = filterNearbyStaff(staff, event, new Set([1]));
-    expect(result.some((s) => s.id === 1)).toBe(false);
-    expect(result.some((s) => s.id === 2)).toBe(true);
+    const ids = result.map((s) => s.id);
+    expect(ids).not.toContain(1);
+    expect(ids).toContain(2);
   });
 
-  it('returns empty array when no nearby staff', () => {
+  it('returns empty array when no nearby staff match the state', () => {
     const result = filterNearbyStaff(staff, { state: 'FL', city: 'Miami' }, new Set());
     expect(result).toHaveLength(0);
   });
@@ -163,5 +185,10 @@ describe('filterNearbyStaff', () => {
   it('returns empty when all nearby staff are already invited', () => {
     const result = filterNearbyStaff(staff, event, new Set([1, 2]));
     expect(result).toHaveLength(0);
+  });
+
+  it('filters case-insensitively', () => {
+    const result = filterNearbyStaff(staff, { state: 'tx', city: 'austin' }, new Set());
+    expect(result.map((s) => s.id)).toContain(1);
   });
 });

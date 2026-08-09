@@ -9,10 +9,16 @@ import {
   virtualMeetingParticipantsTable,
   virtualMeetingsTable,
 } from "@workspace/db";
+import {
+  NEEDS_TOUCHPOINT_DAYS,
+  filterNearbyStaff,
+  isSameCity,
+  needsVirtualTouchpoint,
+  sortByEventGap,
+  sortByTouchpointGap,
+} from "../lib/suggestion-logic";
 
 const router: IRouter = Router();
-
-const NEEDS_TOUCHPOINT_DAYS = 90;
 
 async function getDaysSinceLastInPersonEvent(personId: number): Promise<number | null> {
   const attended = await db
@@ -97,15 +103,10 @@ router.get("/suggestions/meetups", async (_req, res): Promise<void> => {
       const invitedIds = new Set(invitations.map((i) => i.personId));
 
       // Suggest staff near the event (same state, not yet invited)
-      const nearbyStaff = allStaff.filter(
-        (s) => s.homeState.toLowerCase() === event.state.toLowerCase() && !invitedIds.has(s.id)
+      const nearbyStaff = filterNearbyStaff(allStaff, event, invitedIds);
+      const sameCityIds = new Set(
+        nearbyStaff.filter((s) => isSameCity(s.homeCity, event.city)).map((s) => s.id)
       );
-
-      // Also suggest same city
-      const sameCityStaff = allStaff.filter(
-        (s) => s.homeCity.toLowerCase() === event.city.toLowerCase() && !invitedIds.has(s.id)
-      );
-      const sameCityIds = new Set(sameCityStaff.map((s) => s.id));
 
       const suggestedPeople = await Promise.all(
         nearbyStaff.slice(0, 10).map(async (person) => {
@@ -121,12 +122,7 @@ router.get("/suggestions/meetups", async (_req, res): Promise<void> => {
         })
       );
 
-      // Sort: no recent events first
-      suggestedPeople.sort((a, b) => {
-        if (a.daysSinceLastEvent === null) return -1;
-        if (b.daysSinceLastEvent === null) return 1;
-        return b.daysSinceLastEvent - a.daysSinceLastEvent;
-      });
+      suggestedPeople.sort(sortByEventGap);
 
       return {
         event: {
@@ -141,7 +137,7 @@ router.get("/suggestions/meetups", async (_req, res): Promise<void> => {
     })
   );
 
-  // Only include events that have leaders attending (otherwise nothing to suggest)
+  // Only include events that have leaders attending or people to suggest
   const filtered = suggestions.filter((s) => s.leaders.length > 0 || s.suggestedPeople.length > 0);
   res.json(filtered);
 });
@@ -160,16 +156,9 @@ router.get("/suggestions/virtual", async (_req, res): Promise<void> => {
     })
   );
 
-  const needsVirtual = staffWithTouchpoints.filter(
-    ({ days }) => days === null || days >= NEEDS_TOUCHPOINT_DAYS
-  );
+  const needsVirtual = staffWithTouchpoints.filter(({ days }) => needsVirtualTouchpoint(days));
 
-  // Sort: no engagement first, then longest gap
-  needsVirtual.sort((a, b) => {
-    if (a.days === null) return -1;
-    if (b.days === null) return 1;
-    return b.days - a.days;
-  });
+  needsVirtual.sort(sortByTouchpointGap);
 
   const suggestions = needsVirtual.slice(0, 20).map(({ person, days, type }) => ({
     person,

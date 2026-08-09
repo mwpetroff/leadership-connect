@@ -21,6 +21,10 @@ import {
 
 const router: IRouter = Router();
 
+/** Convert a Zod-coerced Date (or already-string) to 'YYYY-MM-DD' for Drizzle date columns. */
+const toDateStr = (d: Date | string): string =>
+  d instanceof Date ? d.toISOString().split("T")[0] : d;
+
 async function meetingWithMeta(meeting: typeof virtualMeetingsTable.$inferSelect) {
   const participants = await db
     .select()
@@ -66,7 +70,13 @@ router.post("/virtual-meetings", async (req, res): Promise<void> => {
     return;
   }
 
-  const [meeting] = await db.insert(virtualMeetingsTable).values(parsed.data).returning();
+  const [meeting] = await db
+    .insert(virtualMeetingsTable)
+    .values({
+      ...parsed.data,
+      scheduledDate: parsed.data.scheduledDate ? toDateStr(parsed.data.scheduledDate) : undefined,
+    })
+    .returning();
   res.status(201).json(await meetingWithMeta(meeting));
 });
 
@@ -103,9 +113,17 @@ router.patch("/virtual-meetings/:id", async (req, res): Promise<void> => {
     return;
   }
 
+  const { scheduledDate, ...restData } = parsed.data;
+  const setData = {
+    ...restData,
+    ...(scheduledDate !== undefined
+      ? { scheduledDate: scheduledDate ? toDateStr(scheduledDate) : undefined }
+      : {}),
+  };
+
   const [meeting] = await db
     .update(virtualMeetingsTable)
-    .set(parsed.data)
+    .set(setData)
     .where(eq(virtualMeetingsTable.id, params.data.id))
     .returning();
 
