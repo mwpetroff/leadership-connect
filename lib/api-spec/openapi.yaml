@@ -22,6 +22,10 @@ tags:
     description: Summary and analytics
   - name: suggestions
     description: Smart engagement suggestions
+  - name: settings
+    description: Operational configuration
+  - name: auditLog
+    description: Admin audit trail
 
 paths:
   /healthz:
@@ -627,6 +631,85 @@ paths:
         "204":
           description: Removed
 
+  # ─── Settings ─────────────────────────────────────────────────────────────
+  /settings:
+    get:
+      operationId: listSettings
+      tags: [settings]
+      summary: List all configuration settings
+      responses:
+        "200":
+          description: All settings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Setting"
+
+  /settings/{key}:
+    patch:
+      operationId: updateSetting
+      tags: [settings]
+      summary: Update a single setting value
+      parameters:
+        - in: path
+          name: key
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SettingUpdate"
+      responses:
+        "200":
+          description: Updated setting
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Setting"
+        "404":
+          description: Unknown key
+
+  # ─── Audit Log ────────────────────────────────────────────────────────────
+  /audit-log:
+    get:
+      operationId: listAuditLog
+      tags: [auditLog]
+      summary: List audit log entries (admin only)
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 25
+        - in: query
+          name: resourceType
+          schema:
+            type: string
+        - in: query
+          name: actorId
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Paginated audit log
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuditLogPage"
+
   # ─── Dashboard ────────────────────────────────────────────────────────────
   /dashboard/summary:
     get:
@@ -1133,6 +1216,69 @@ components:
         recentlyEngaged:
           type: integer
         neverEngaged:
+          type: integer
+
+    # ─── Settings ────────────────────────────────────────────────────────────
+    Setting:
+      type: object
+      required: [key, value, updatedAt]
+      properties:
+        key:
+          type: string
+        value:
+          type: string
+        updatedAt:
+          type: string
+          format: date-time
+
+    SettingUpdate:
+      type: object
+      required: [value]
+      properties:
+        value:
+          type: string
+
+    # ─── Audit Log ───────────────────────────────────────────────────────────
+    AuditLogEntry:
+      type: object
+      required: [id, actorId, actorName, action, resourceType, resourceId, createdAt]
+      properties:
+        id:
+          type: integer
+        actorId:
+          type: string
+        actorName:
+          type: string
+        action:
+          type: string
+          enum: [create, update, delete]
+        resourceType:
+          type: string
+        resourceId:
+          type: string
+        before:
+          description: Row snapshot before the change (null for creates)
+        after:
+          description: Row snapshot after the change (null for deletes)
+        createdAt:
+          type: string
+          format: date-time
+
+    AuditLogPage:
+      type: object
+      required: [items, page, limit, total, totalPages]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuditLogEntry"
+        page:
+          type: integer
+        limit:
+          type: integer
+        total:
+          type: integer
+        totalPages:
           type: integer
 
     # ─── Suggestions ─────────────────────────────────────────────────────────

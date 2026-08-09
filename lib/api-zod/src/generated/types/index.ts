@@ -8,6 +8,9 @@
 
 export * from './activityItem';
 export * from './activityItemType';
+export * from './auditLogEntry';
+export * from './auditLogEntryAction';
+export * from './auditLogPage';
 export * from './bulkInvitationInput';
 export * from './bulkInvitationResult';
 export * from './bulkInvitationStatusInput';
@@ -28,6 +31,7 @@ export * from './invitationInput';
 export * from './invitationStatus';
 export * from './invitationUpdate';
 export * from './invitationUpdateStatus';
+export * from './listAuditLogParams';
 export * from './listEventsParams';
 export * from './listPeopleParams';
 export * from './listPeopleRole';
@@ -43,6 +47,8 @@ export * from './personRole';
 export * from './personUpdate';
 export * from './personUpdateRole';
 export * from './roleEngagement';
+export * from './setting';
+export * from './settingUpdate';
 export * from './suggestedPerson';
 export * from './virtualMeeting';
 export * from './virtualMeetingInput';

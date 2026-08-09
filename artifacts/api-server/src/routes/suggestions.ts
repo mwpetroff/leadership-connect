@@ -10,13 +10,13 @@ import {
   virtualMeetingsTable,
 } from "@workspace/db";
 import {
-  NEEDS_TOUCHPOINT_DAYS,
   filterNearbyStaff,
   isSameCity,
   needsVirtualTouchpoint,
   sortByEventGap,
   sortByTouchpointGap,
 } from "../lib/suggestion-logic";
+import { getTouchpointThresholdDays, getSetting } from "../lib/settings-store";
 
 const router: IRouter = Router();
 
@@ -156,7 +156,10 @@ router.get("/suggestions/virtual", async (_req, res): Promise<void> => {
     })
   );
 
-  const needsVirtual = staffWithTouchpoints.filter(({ days }) => needsVirtualTouchpoint(days));
+  const thresholdDays = await getTouchpointThresholdDays();
+  const needsVirtual = staffWithTouchpoints.filter(({ days }) =>
+    days === null || days >= thresholdDays
+  );
 
   needsVirtual.sort(sortByTouchpointGap);
 

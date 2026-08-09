@@ -20,6 +20,7 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AuditLogPage,
   BulkInvitationInput,
   BulkInvitationResult,
   BulkInvitationStatusInput,
@@ -33,6 +34,7 @@ import type {
   Invitation,
   InvitationInput,
   InvitationUpdate,
+  ListAuditLogParams,
   ListEventsParams,
   ListPeopleParams,
   ListVirtualMeetingsParams,
@@ -42,6 +44,8 @@ import type {
   PersonEngagement,
   PersonInput,
   PersonUpdate,
+  Setting,
+  SettingUpdate,
   VirtualMeeting,
   VirtualMeetingInput,
   VirtualMeetingParticipant,
@@ -2235,6 +2239,239 @@ export const useRemoveVirtualMeetingParticipant = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getRemoveVirtualMeetingParticipantMutationOptions(options));
     }
+
+export const getListSettingsUrl = () => {
+
+
+
+
+  return `/api/settings`
+}
+
+/**
+ * @summary List all configuration settings
+ */
+export const listSettings = async ( options?: Parameters<typeof customFetch>[1]): Promise<Setting[]> => {
+
+  return customFetch<Setting[]>(getListSettingsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListSettingsQueryKey = () => {
+    return [
+    `/api/settings`
+    ] as const;
+    }
+
+
+export const getListSettingsQueryOptions = <TData = Awaited<ReturnType<typeof listSettings>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSettings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListSettingsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listSettings>>> = ({ signal }) => listSettings({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listSettings>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListSettingsQueryResult = NonNullable<Awaited<ReturnType<typeof listSettings>>>
+export type ListSettingsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List all configuration settings
+ */
+
+export function useListSettings<TData = Awaited<ReturnType<typeof listSettings>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSettings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListSettingsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateSettingUrl = (key: string,) => {
+
+
+
+
+  return `/api/settings/${key}`
+}
+
+/**
+ * @summary Update a single setting value
+ */
+export const updateSetting = async (key: string,
+    settingUpdate: SettingUpdate, options?: Parameters<typeof customFetch>[1]): Promise<Setting> => {
+
+  return customFetch<Setting>(getUpdateSettingUrl(key),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(settingUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateSettingMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateSetting>>, TError,{key: string;data: BodyType<SettingUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateSetting>>, TError,{key: string;data: BodyType<SettingUpdate>}, TContext> => {
+
+const mutationKey = ['updateSetting'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateSetting>>, {key: string;data: BodyType<SettingUpdate>}> = (props) => {
+          const {key,data} = props ?? {};
+
+          return  updateSetting(key,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateSettingMutationResult = NonNullable<Awaited<ReturnType<typeof updateSetting>>>
+    export type UpdateSettingMutationBody = BodyType<SettingUpdate>
+    export type UpdateSettingMutationError = ErrorType<void>
+
+    /**
+ * @summary Update a single setting value
+ */
+export const useUpdateSetting = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateSetting>>, TError,{key: string;data: BodyType<SettingUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateSetting>>,
+        TError,
+        {key: string;data: BodyType<SettingUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateSettingMutationOptions(options));
+    }
+
+export const getListAuditLogUrl = (params?: ListAuditLogParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/audit-log?${stringifiedParams}` : `/api/audit-log`
+}
+
+/**
+ * @summary List audit log entries (admin only)
+ */
+export const listAuditLog = async (params?: ListAuditLogParams, options?: Parameters<typeof customFetch>[1]): Promise<AuditLogPage> => {
+
+  return customFetch<AuditLogPage>(getListAuditLogUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAuditLogQueryKey = (params?: ListAuditLogParams,) => {
+    return [
+    `/api/audit-log`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListAuditLogQueryOptions = <TData = Awaited<ReturnType<typeof listAuditLog>>, TError = ErrorType<unknown>>(params?: ListAuditLogParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAuditLog>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAuditLogQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAuditLog>>> = ({ signal }) => listAuditLog(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAuditLog>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListAuditLogQueryResult = NonNullable<Awaited<ReturnType<typeof listAuditLog>>>
+export type ListAuditLogQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List audit log entries (admin only)
+ */
+
+export function useListAuditLog<TData = Awaited<ReturnType<typeof listAuditLog>>, TError = ErrorType<unknown>>(
+ params?: ListAuditLogParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAuditLog>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListAuditLogQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getGetDashboardSummaryUrl = () => {
 

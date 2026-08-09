@@ -22,6 +22,7 @@ import EventDetail from '@/pages/events/detail';
 import VirtualMeetings from '@/pages/virtual-meetings';
 import VirtualMeetingDetail from '@/pages/virtual-meetings/detail';
 import SuggestionsHub from '@/pages/suggestions';
+import SettingsPage from '@/pages/settings';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -80,6 +81,7 @@ function Router() {
           <Route path="/virtual-meetings" component={VirtualMeetings} />
           <Route path="/virtual-meetings/:id" component={VirtualMeetingDetail} />
           <Route path="/suggestions" component={SuggestionsHub} />
+          <Route path="/settings" component={SettingsPage} />
           <Route component={NotFound} />
         </Switch>
       </Shell>

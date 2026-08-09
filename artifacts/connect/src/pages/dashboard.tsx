@@ -129,7 +129,7 @@ export default function Dashboard() {
               <div key={idx} className="p-4 border-b border-border last:border-0 hover:bg-muted/50 transition-colors">
                 <div className="flex justify-between items-start">
                   <div className="flex gap-3">
-                    <div className="h-10 w-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 font-bold shrink-0">
+                    <div className="h-10 w-10 rounded-full bg-violet-100 flex items-center justify-center text-violet-700 font-bold shrink-0 text-sm">
                       {suggestion.person.name.split(' ').map(n => n[0]).join('').substring(0, 2)}
                     </div>
                     <div>
@@ -144,7 +144,7 @@ export default function Dashboard() {
                       </div>
                     </div>
                   </div>
-                  <button className="px-3 py-1.5 text-xs font-medium bg-primary text-primary-foreground rounded hover:bg-primary/90 transition-colors">
+                  <button className="px-3 py-1.5 text-xs font-semibold bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors">
                     Schedule
                   </button>
                 </div>
@@ -178,7 +178,7 @@ export default function Dashboard() {
                       {meetup.event.location} · {format(new Date(meetup.event.startDate), 'MMM d, yyyy')}
                     </div>
                   </div>
-                  <div className="text-xs font-medium uppercase tracking-wider px-2 py-1 bg-indigo-50 text-indigo-700 rounded border border-indigo-100">
+                  <div className="text-xs font-medium uppercase tracking-wider px-2.5 py-1 bg-primary/8 text-primary rounded-lg border border-primary/15">
                     {meetup.event.eventType}
                   </div>
                 </div>
@@ -225,10 +225,10 @@ export default function Dashboard() {
                 <div key={idx} className="p-4 flex items-start gap-4">
                   <div className={cn(
                     "mt-0.5 h-8 w-8 rounded-full flex items-center justify-center shrink-0",
-                    activity.type === 'invitation' ? 'bg-blue-50 text-blue-600' :
-                    activity.type === 'attendance' ? 'bg-green-50 text-green-600' :
-                    activity.type === 'virtual_meeting' ? 'bg-purple-50 text-purple-600' :
-                    'bg-slate-50 text-slate-600'
+                    activity.type === 'invitation' ? 'bg-sky-50 text-sky-600' :
+                    activity.type === 'attendance' ? 'bg-emerald-50 text-emerald-600' :
+                    activity.type === 'virtual_meeting' ? 'bg-violet-50 text-violet-600' :
+                    'bg-muted text-muted-foreground'
                   )}>
                     {activity.type === 'invitation' && <Users className="h-4 w-4" />}
                     {activity.type === 'attendance' && <MapPin className="h-4 w-4" />}

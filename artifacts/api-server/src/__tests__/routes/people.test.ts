@@ -92,6 +92,8 @@ vi.mock('@workspace/db', () => ({
     meetingId: 'meetingId',
     personId: 'personId',
   },
+  settingsTable: { key: 'key', value: 'value' },
+  auditLogTable: { id: 'id', actorId: 'actorId', actorName: 'actorName', action: 'action', resourceType: 'resourceType', resourceId: 'resourceId' },
 }));
 
 // ─── Import app after mocks are registered ────────────────────────────────────
@@ -201,7 +203,8 @@ describe('PATCH /api/people/:id', () => {
   });
 
   it('returns 404 when person not found', async () => {
-    // PATCH uses update().returning() — no pre-check select. Empty returning = 404.
+    // PATCH now reads before-state first (for audit log), then update returning() empty = 404.
+    mockDb.select.mockReturnValueOnce(makeChain([mockPerson])); // before-state read (audit)
     mockDb.update.mockReturnValue(makeChain([]));
     const res = await request(app).patch('/api/people/999').send({ name: 'Ghost' });
     expect(res.status).toBe(404);

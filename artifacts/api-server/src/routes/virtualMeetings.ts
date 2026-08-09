@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import type { Request } from "express";
 import { eq, and } from "drizzle-orm";
+import { logAudit } from "../lib/audit";
 import {
   db,
   virtualMeetingsTable,
@@ -159,7 +160,9 @@ router.post("/virtual-meetings", async (req, res): Promise<void> => {
   }
   // ─────────────────────────────────────────────────────────────────────────
 
-  res.status(201).json(await meetingWithMeta(meeting));
+  const result = await meetingWithMeta(meeting);
+  logAudit(req, "create", "virtual_meeting", meeting.id, null, meeting);
+  res.status(201).json(result);
 });
 
 router.get("/virtual-meetings/:id", async (req, res): Promise<void> => {
@@ -258,6 +261,7 @@ router.patch("/virtual-meetings/:id", async (req, res): Promise<void> => {
   }
   // ─────────────────────────────────────────────────────────────────────────
 
+  logAudit(req, "update", "virtual_meeting", meeting.id, current, meeting);
   res.json(await meetingWithMeta(meeting));
 });
 
@@ -286,6 +290,7 @@ router.delete("/virtual-meetings/:id", async (req, res): Promise<void> => {
     .delete(virtualMeetingsTable)
     .where(eq(virtualMeetingsTable.id, params.data.id));
 
+  logAudit(req, "delete", "virtual_meeting", existing.id, existing, null);
   res.sendStatus(204);
 });
 
@@ -324,6 +329,11 @@ router.post("/virtual-meetings/:id/participants", async (req, res): Promise<void
     .values({ meetingId: params.data.id, personId: parsed.data.personId })
     .returning();
 
+  logAudit(
+    req, "create", "meeting_participant",
+    `${params.data.id}:${parsed.data.personId}`,
+    null, row ?? null,
+  );
   res.status(201).json(row);
 });
 
@@ -343,6 +353,11 @@ router.delete("/virtual-meetings/:meetingId/participants/:personId", async (req,
       )
     );
 
+  logAudit(
+    req, "delete", "meeting_participant",
+    `${params.data.meetingId}:${params.data.personId}`,
+    { meetingId: params.data.meetingId, personId: params.data.personId }, null,
+  );
   res.sendStatus(204);
 });
 

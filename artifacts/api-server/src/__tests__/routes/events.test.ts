@@ -51,6 +51,8 @@ vi.mock('@workspace/db', () => ({
   eventLeadersTable: { eventId: 'eventId', personId: 'personId' },
   invitationsTable: { eventId: 'eventId', personId: 'personId', status: 'status' },
   peopleTable: {},
+  settingsTable: { key: 'key', value: 'value' },
+  auditLogTable: { id: 'id', actorId: 'actorId', actorName: 'actorName', action: 'action', resourceType: 'resourceType', resourceId: 'resourceId' },
 }));
 
 import app from '../../app';
@@ -149,13 +151,15 @@ describe('PATCH /api/events/:id', () => {
   it('returns 200 with updated event', async () => {
     mockDb.update.mockReturnValue(makeChain([{ ...mockEvent, name: 'Updated Summit' }]));
     mockDb.select
-      .mockReturnValueOnce(makeChain([]))  // leaders
-      .mockReturnValueOnce(makeChain([])); // invitations
+      .mockReturnValueOnce(makeChain([mockEvent])) // before-state read (audit log)
+      .mockReturnValueOnce(makeChain([]))          // leaders (eventWithCounts)
+      .mockReturnValueOnce(makeChain([]));         // invitations (eventWithCounts)
     const res = await request(app).patch('/api/events/1').send({ name: 'Updated Summit' });
     expect(res.status).toBe(200);
   });
 
   it('returns 404 when not found', async () => {
+    mockDb.select.mockReturnValueOnce(makeChain([mockEvent])); // before-state read
     mockDb.update.mockReturnValue(makeChain([]));
     const res = await request(app).patch('/api/events/999').send({ name: 'Ghost' });
     expect(res.status).toBe(404);

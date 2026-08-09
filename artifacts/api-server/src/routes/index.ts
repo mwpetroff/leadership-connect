@@ -6,7 +6,10 @@ import invitationsRouter from "./invitations";
 import virtualMeetingsRouter from "./virtualMeetings";
 import dashboardRouter from "./dashboard";
 import suggestionsRouter from "./suggestions";
+import settingsRouter from "./settings";
+import auditLogRouter from "./auditLog";
 import { requireAuth, requireRole } from "../lib/auth";
+import { seedDefaults } from "../lib/settings-store";
 
 const router: IRouter = Router();
 
@@ -52,11 +55,16 @@ router.use((req, res, next) => {
   return requireRole("admin")(req, res, next);
 });
 
+// Seed settings defaults once on startup (idempotent)
+seedDefaults().catch((err) => console.error("[settings] seedDefaults failed:", err));
+
 router.use(peopleRouter);
 router.use(eventsRouter);
 router.use(invitationsRouter);
 router.use(virtualMeetingsRouter);
 router.use(dashboardRouter);
 router.use(suggestionsRouter);
+router.use(settingsRouter);
+router.use(auditLogRouter);
 
 export default router;

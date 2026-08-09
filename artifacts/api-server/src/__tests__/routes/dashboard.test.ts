@@ -45,6 +45,8 @@ vi.mock('@workspace/db', () => ({
   invitationsTable: { id: 'id', eventId: 'eventId', personId: 'personId', status: 'status', createdAt: 'createdAt' },
   virtualMeetingsTable: { id: 'id', status: 'status', scheduledDate: 'scheduledDate', createdAt: 'createdAt' },
   virtualMeetingParticipantsTable: { meetingId: 'meetingId', personId: 'personId' },
+  settingsTable: { key: 'key', value: 'value' },
+  auditLogTable: { id: 'id', actorId: 'actorId', actorName: 'actorName', action: 'action', resourceType: 'resourceType', resourceId: 'resourceId' },
 }));
 
 import app from '../../app';

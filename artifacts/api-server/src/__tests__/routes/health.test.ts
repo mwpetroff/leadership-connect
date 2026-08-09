@@ -10,6 +10,8 @@ vi.mock('@workspace/db', () => ({
   invitationsTable: {},
   virtualMeetingsTable: {},
   virtualMeetingParticipantsTable: {},
+  settingsTable: { key: 'key', value: 'value' },
+  auditLogTable: { id: 'id', actorId: 'actorId', actorName: 'actorName', action: 'action', resourceType: 'resourceType', resourceId: 'resourceId' },
 }));
 
 import app from '../../app';

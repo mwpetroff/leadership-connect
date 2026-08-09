@@ -65,6 +65,8 @@ vi.mock('@workspace/db', () => ({
   virtualMeetingsTable: { id: 'id', status: 'status', scheduledDate: 'scheduledDate' },
   virtualMeetingParticipantsTable: { meetingId: 'meetingId', personId: 'personId' },
   peopleTable: { id: 'id' },
+  settingsTable: { key: 'key', value: 'value' },
+  auditLogTable: { id: 'id', actorId: 'actorId', actorName: 'actorName', action: 'action', resourceType: 'resourceType', resourceId: 'resourceId' },
 }));
 
 vi.mock('../../lib/graph', () => ({

@@ -8,10 +8,9 @@ import {
   virtualMeetingsTable,
   virtualMeetingParticipantsTable,
 } from "@workspace/db";
+import { getTouchpointThresholdDays } from "../lib/settings-store";
 
 const router: IRouter = Router();
-
-const NEEDS_TOUCHPOINT_DAYS = 90;
 
 async function getDaysSinceLastTouchpoint(personId: number): Promise<number | null> {
   const attended = await db
@@ -57,13 +56,14 @@ router.get("/dashboard/summary", async (_req, res): Promise<void> => {
   const totalSecondaryLeaders = allPeople.filter((p) => p.role === "secondary_leader").length;
   const totalStaff = allPeople.filter((p) => p.role === "staff").length;
 
-  // Find staff needing touchpoint (no touchpoint in 90+ days or never)
+  // Find staff needing touchpoint (no touchpoint in threshold+ days or never)
+  const thresholdDays = await getTouchpointThresholdDays();
   const staffPeople = allPeople.filter((p) => p.role === "staff");
   const staffWithDays = await Promise.all(
     staffPeople.map(async (p) => ({ person: p, days: await getDaysSinceLastTouchpoint(p.id) }))
   );
   const needsTouchpoint = staffWithDays
-    .filter(({ days }) => days === null || days >= NEEDS_TOUCHPOINT_DAYS)
+    .filter(({ days }) => days === null || days >= thresholdDays)
     .map(({ person }) => person)
     .slice(0, 10);
 
@@ -152,7 +152,7 @@ router.get("/dashboard/summary", async (_req, res): Promise<void> => {
       let recentlyEngaged = 0;
       for (const p of people) {
         const days = await getDaysSinceLastTouchpoint(p.id);
-        if (days !== null && days < NEEDS_TOUCHPOINT_DAYS) recentlyEngaged++;
+        if (days !== null && days < thresholdDays) recentlyEngaged++;
       }
       const neverEngaged = people.filter(async (p) => {
         const days = await getDaysSinceLastTouchpoint(p.id);

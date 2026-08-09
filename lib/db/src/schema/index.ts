@@ -5,3 +5,5 @@ export * from "./invitations";
 export * from "./virtualMeetings";
 export * from "./virtualMeetingParticipants";
 export * from "./msalTokenCache";
+export * from "./settings";
+export * from "./auditLog";

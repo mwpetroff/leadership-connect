@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, and, inArray } from "drizzle-orm";
 import { db, invitationsTable, peopleTable, eventsTable } from "@workspace/db";
+import { logAudit } from "../lib/audit";
 import {
   ListEventInvitationsParams,
   CreateInvitationParams,
@@ -140,7 +141,9 @@ router.post("/events/:id/invitations", async (req, res): Promise<void> => {
   }
   // ─────────────────────────────────────────────────────────────────────────
 
-  res.status(201).json(await invitationWithRelations(invitation));
+  const result = await invitationWithRelations(invitation);
+  logAudit(req, "create", "invitation", invitation.id, null, invitation);
+  res.status(201).json(result);
 });
 
 // ── POST /events/:id/invitations/bulk ─────────────────────────────────────────
@@ -183,6 +186,12 @@ router.post("/events/:id/invitations/bulk", async (req, res): Promise<void> => {
 
   const enriched = await Promise.all(insertedRows.map(invitationWithRelations));
 
+  // Log each created invitation individually so the audit trail has one entry
+  // per resource rather than one opaque bulk entry.
+  for (const inv of insertedRows) {
+    logAudit(req, "create", "invitation", inv.id, null, inv);
+  }
+
   res.status(201).json({ created, skipped, invitations: enriched });
 });
 
@@ -217,6 +226,14 @@ router.patch("/events/:id/invitations/bulk", async (req, res): Promise<void> => 
   );
 
   const updated = results.filter((r) => r.length > 0).length;
+
+  // Log each successfully updated invitation.
+  for (const rows of results) {
+    if (rows[0]) {
+      logAudit(req, "update", "invitation", rows[0].id, null, rows[0]);
+    }
+  }
+
   res.json({ updated });
 });
 
@@ -233,6 +250,8 @@ router.patch("/invitations/:id", async (req, res): Promise<void> => {
     return;
   }
 
+  const [before] = await db.select().from(invitationsTable).where(eq(invitationsTable.id, params.data.id));
+
   const [invitation] = await db
     .update(invitationsTable)
     .set(parsed.data)
@@ -244,6 +263,7 @@ router.patch("/invitations/:id", async (req, res): Promise<void> => {
     return;
   }
 
+  logAudit(req, "update", "invitation", invitation.id, before ?? null, invitation);
   res.json(await invitationWithRelations(invitation));
 });
 
@@ -282,6 +302,7 @@ router.delete("/invitations/:id", async (req, res): Promise<void> => {
     .delete(invitationsTable)
     .where(eq(invitationsTable.id, params.data.id));
 
+  logAudit(req, "delete", "invitation", existing.id, existing, null);
   res.sendStatus(204);
 });
 

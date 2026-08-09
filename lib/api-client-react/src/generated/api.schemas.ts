@@ -388,6 +388,47 @@ export interface DashboardSummary {
   needsTouchpoint: Person[];
 }
 
+export interface Setting {
+  key: string;
+  value: string;
+  updatedAt: string;
+}
+
+export interface SettingUpdate {
+  value: string;
+}
+
+export type AuditLogEntryAction = typeof AuditLogEntryAction[keyof typeof AuditLogEntryAction];
+
+
+export const AuditLogEntryAction = {
+  create: 'create',
+  update: 'update',
+  delete: 'delete',
+} as const;
+
+export interface AuditLogEntry {
+  id: number;
+  actorId: string;
+  actorName: string;
+  action: AuditLogEntryAction;
+  resourceType: string;
+  resourceId: string;
+  /** Row snapshot before the change (null for creates) */
+  before?: unknown;
+  /** Row snapshot after the change (null for deletes) */
+  after?: unknown;
+  createdAt: string;
+}
+
+export interface AuditLogPage {
+  items: AuditLogEntry[];
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
 export interface SuggestedPerson {
   person: Person;
   reason: string;
@@ -443,4 +484,18 @@ export const ListVirtualMeetingsStatus = {
   completed: 'completed',
   cancelled: 'cancelled',
 } as const;
+
+export type ListAuditLogParams = {
+/**
+ * @minimum 1
+ */
+page?: number;
+/**
+ * @minimum 1
+ * @maximum 100
+ */
+limit?: number;
+resourceType?: string;
+actorId?: string;
+};
 

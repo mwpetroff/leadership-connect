@@ -10,6 +10,7 @@ import {
   DeletePersonParams,
   GetPersonEngagementParams,
 } from "@workspace/api-zod";
+import { logAudit } from "../lib/audit";
 
 const router: IRouter = Router();
 
@@ -56,6 +57,7 @@ router.post("/people", async (req, res): Promise<void> => {
   }
 
   const [person] = await db.insert(peopleTable).values(parsed.data).returning();
+  logAudit(req, "create", "person", person.id, null, person);
   res.status(201).json(person);
 });
 
@@ -88,6 +90,8 @@ router.patch("/people/:id", async (req, res): Promise<void> => {
     return;
   }
 
+  const [before] = await db.select().from(peopleTable).where(eq(peopleTable.id, params.data.id));
+
   const [person] = await db
     .update(peopleTable)
     .set(parsed.data)
@@ -99,6 +103,7 @@ router.patch("/people/:id", async (req, res): Promise<void> => {
     return;
   }
 
+  logAudit(req, "update", "person", person.id, before ?? null, person);
   res.json(person);
 });
 
@@ -119,6 +124,7 @@ router.delete("/people/:id", async (req, res): Promise<void> => {
     return;
   }
 
+  logAudit(req, "delete", "person", person.id, person, null);
   res.sendStatus(204);
 });
 

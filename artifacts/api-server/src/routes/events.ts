@@ -18,6 +18,7 @@ import {
   AddEventLeaderParams,
   RemoveEventLeaderParams,
 } from "@workspace/api-zod";
+import { logAudit } from "../lib/audit";
 
 const router: IRouter = Router();
 
@@ -85,6 +86,7 @@ router.post("/events", async (req, res): Promise<void> => {
       endDate: parsed.data.endDate ? toDateStr(parsed.data.endDate) : undefined,
     })
     .returning();
+  logAudit(req, "create", "event", event.id, null, event);
   res.status(201).json(await eventWithCounts(event));
 });
 
@@ -117,6 +119,8 @@ router.patch("/events/:id", async (req, res): Promise<void> => {
     return;
   }
 
+  const [before] = await db.select().from(eventsTable).where(eq(eventsTable.id, params.data.id));
+
   const { startDate, endDate, ...restData } = parsed.data;
   const setData = {
     ...restData,
@@ -135,6 +139,7 @@ router.patch("/events/:id", async (req, res): Promise<void> => {
     return;
   }
 
+  logAudit(req, "update", "event", event.id, before ?? null, event);
   res.json(await eventWithCounts(event));
 });
 
@@ -151,6 +156,7 @@ router.delete("/events/:id", async (req, res): Promise<void> => {
     return;
   }
 
+  logAudit(req, "delete", "event", event.id, event, null);
   res.sendStatus(204);
 });
 
@@ -198,6 +204,11 @@ router.post("/events/:eventId/leaders/:personId", async (req, res): Promise<void
     .values({ eventId: params.data.eventId, personId: params.data.personId })
     .returning();
 
+  logAudit(
+    req, "create", "event_leader",
+    `${params.data.eventId}:${params.data.personId}`,
+    null, row ?? null,
+  );
   res.status(201).json(row);
 });
 
@@ -223,6 +234,11 @@ router.delete("/events/:eventId/leaders/:personId", async (req, res): Promise<vo
     return;
   }
 
+  logAudit(
+    req, "delete", "event_leader",
+    `${params.data.eventId}:${params.data.personId}`,
+    row, null,
+  );
   res.sendStatus(204);
 });
 

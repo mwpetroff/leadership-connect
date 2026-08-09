@@ -883,6 +883,71 @@ export const RemoveVirtualMeetingParticipantResponse = zod.void()
 
 
 /**
+ * @summary List all configuration settings
+ */
+export const ListSettingsResponseItem = zod.object({
+  "key": zod.string(),
+  "value": zod.string(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListSettingsResponse = zod.array(ListSettingsResponseItem)
+
+
+/**
+ * @summary Update a single setting value
+ */
+export const UpdateSettingParams = zod.object({
+  "key": zod.coerce.string()
+})
+
+export const UpdateSettingBody = zod.object({
+  "value": zod.string()
+})
+
+export const UpdateSettingResponse = zod.object({
+  "key": zod.string(),
+  "value": zod.string(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary List audit log entries (admin only)
+ */
+export const listAuditLogQueryPageDefault = 1;
+
+export const listAuditLogQueryLimitDefault = 25;
+export const listAuditLogQueryLimitMax = 100;
+
+
+
+export const ListAuditLogQueryParams = zod.object({
+  "page": zod.coerce.number().int().min(1).default(listAuditLogQueryPageDefault),
+  "limit": zod.coerce.number().int().min(1).max(listAuditLogQueryLimitMax).default(listAuditLogQueryLimitDefault),
+  "resourceType": zod.coerce.string().optional(),
+  "actorId": zod.coerce.string().optional()
+})
+
+export const ListAuditLogResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number().int(),
+  "actorId": zod.string(),
+  "actorName": zod.string(),
+  "action": zod.enum(['create', 'update', 'delete']),
+  "resourceType": zod.string(),
+  "resourceId": zod.string(),
+  "before": zod.unknown().optional().describe('Row snapshot before the change (null for creates)'),
+  "after": zod.unknown().optional().describe('Row snapshot after the change (null for deletes)'),
+  "createdAt": zod.coerce.date()
+})),
+  "page": zod.number().int(),
+  "limit": zod.number().int(),
+  "total": zod.number().int(),
+  "totalPages": zod.number().int()
+})
+
+
+/**
  * @summary Get high-level engagement summary and stats
  */
 export const GetDashboardSummaryResponse = zod.object({

@@ -77,6 +77,8 @@ vi.mock('@workspace/db', () => ({
   invitationsTable: { id: 'id', eventId: 'eventId', personId: 'personId', status: 'status' },
   peopleTable: { id: 'id' },
   eventsTable: { id: 'id' },
+  settingsTable: { key: 'key', value: 'value' },
+  auditLogTable: { id: 'id', actorId: 'actorId', actorName: 'actorName', action: 'action', resourceType: 'resourceType', resourceId: 'resourceId' },
 }));
 
 vi.mock('../../lib/graph', () => ({
@@ -226,6 +228,7 @@ describe('POST /api/events/:id/invitations — Outlook calendar event provisioni
 describe('PATCH /api/invitations/:id', () => {
   it('returns 200 with updated invitation', async () => {
     const updated = { ...mockInvitation, status: 'attended' };
+    mockDb.select.mockReturnValueOnce(makeChain([mockInvitation])); // before-state read (audit)
     mockDb.update.mockReturnValue(makeChain([updated]));
     mockWithRelations();
     const res = await request(app).patch('/api/invitations/10').send({ status: 'attended' });
@@ -233,6 +236,7 @@ describe('PATCH /api/invitations/:id', () => {
   });
 
   it('returns 404 when not found', async () => {
+    mockDb.select.mockReturnValueOnce(makeChain([mockInvitation])); // before-state read (audit)
     mockDb.update.mockReturnValue(makeChain([]));
     const res = await request(app).patch('/api/invitations/999').send({ status: 'attended' });
     expect(res.status).toBe(404);
