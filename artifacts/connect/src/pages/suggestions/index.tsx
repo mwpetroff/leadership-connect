@@ -5,6 +5,7 @@ import {
   useGetVirtualSuggestions,
   useCreateInvitation,
   useCreateVirtualMeeting,
+  useAddVirtualMeetingParticipant,
   getGetMeetupSuggestionsQueryKey,
   getGetVirtualSuggestionsQueryKey
 } from '@workspace/api-client-react';
@@ -30,28 +31,30 @@ export default function SuggestionsHub() {
     }
   });
 
-  const createMeeting = useCreateVirtualMeeting({
-    mutation: {
-      onSuccess: () => {
-        toast({ title: 'Virtual meeting suggested' });
-        queryClient.invalidateQueries({ queryKey: getGetVirtualSuggestionsQueryKey() });
-      }
-    }
-  });
+  const createMeeting = useCreateVirtualMeeting();
+  const addParticipant = useAddVirtualMeetingParticipant();
 
   const handleInvite = (eventId: number, personId: number) => {
     createInvite.mutate({ id: eventId, data: { personId, notes: 'Suggested from meetup hub' } as any });
   };
 
-  const handleScheduleVirtual = (personId: number, leaderId?: number) => {
-    createMeeting.mutate({
-      data: {
-        title: 'Leadership Check-in',
-        status: 'suggested',
-        hostId: leaderId,
-        notes: 'Suggested touchpoint from the hub'
-      }
-    });
+  const handleScheduleVirtual = async (personId: number, leaderId?: number) => {
+    try {
+      const meeting = await createMeeting.mutateAsync({
+        data: {
+          title: 'Leadership Check-in',
+          status: 'suggested',
+          hostId: leaderId,
+          notes: 'Suggested touchpoint from the hub',
+        } as any,
+      });
+      // Add the staff member as a participant so the touchpoint is associated
+      await addParticipant.mutateAsync({ id: (meeting as any).id, data: { personId } });
+      toast({ title: 'Check-in suggested', description: 'A virtual touchpoint has been queued.' });
+      queryClient.invalidateQueries({ queryKey: getGetVirtualSuggestionsQueryKey() });
+    } catch {
+      toast({ title: 'Error', description: 'Failed to create virtual touchpoint.' });
+    }
   };
 
   return (

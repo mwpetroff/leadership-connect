@@ -21,16 +21,22 @@ interface Props {
 
 export function PersonPicker({
   open, onClose, onSelect, title, description,
-  excludeIds = [], roleFilter,
+  excludeIds = [], roleFilter, multiRole,
 }: Props) {
   const [search, setSearch] = useState('');
 
+  // When multiRole is provided we fetch all and filter client-side, because the
+  // API only accepts a single role parameter.
   const { data: people, isLoading } = useListPeople(
-    { search, role: roleFilter },
+    { search, role: multiRole ? undefined : roleFilter },
     { query: { enabled: open } as any }
   );
 
-  const filtered = (people ?? []).filter((p) => !excludeIds.includes(p.id));
+  const filtered = (people ?? []).filter(
+    (p) =>
+      !excludeIds.includes(p.id) &&
+      (multiRole ? multiRole.includes(p.role as PersonRole) : true)
+  );
 
   const roleLabel: Record<string, string> = {
     executive: 'Executive',

@@ -375,6 +375,7 @@ export default function EventDetail() {
         title="Add Attending Leader"
         description="Select an executive or leader attending this event."
         excludeIds={leaderIds}
+        multiRole={['executive', 'secondary_leader']}
       />
 
       <ConfirmDialog
