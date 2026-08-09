@@ -21,6 +21,7 @@ export const invitationsTable = pgTable("invitations", {
     .references(() => peopleTable.id, { onDelete: "cascade" }),
   status: invitationStatusEnum("status").notNull().default("invited"),
   notes: text("notes"),
+  graphEventId: text("graph_event_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

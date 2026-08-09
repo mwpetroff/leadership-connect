@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import type { Request } from "express";
 import { eq, and } from "drizzle-orm";
 import {
   db,
@@ -18,6 +19,11 @@ import {
   AddVirtualMeetingParticipantBody,
   RemoveVirtualMeetingParticipantParams,
 } from "@workspace/api-zod";
+import {
+  getGraphAccessToken,
+  createTeamsMeeting,
+  cancelTeamsMeeting,
+} from "../lib/graph";
 
 const router: IRouter = Router();
 
@@ -43,6 +49,64 @@ async function meetingWithMeta(meeting: typeof virtualMeetingsTable.$inferSelect
     participantCount: participants.length,
   };
 }
+
+// ── Shared Teams meeting provisioning ─────────────────────────────────────────
+//
+// Called any time a meeting enters "scheduled" status — whether via POST
+// (created as scheduled) or PATCH (transitioned from another status).
+// Returns the persisted URL + ID pair, or null if Graph is unavailable.
+
+async function provisionTeamsMeeting(
+  req: Request,
+  meetingId: number,
+  title: string,
+  scheduledDate: string | null | undefined,
+): Promise<{ teamsJoinUrl: string; graphMeetingId: string } | null> {
+  try {
+    const token = await getGraphAccessToken(req);
+    if (!token) return null;
+
+    // Use the scheduled date at 10:00–11:00 UTC; fall back to today + 7 days.
+    const baseDate = scheduledDate
+      ? scheduledDate
+      : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+
+    const teamsResult = await createTeamsMeeting(token, {
+      subject: title,
+      startDateTime: `${baseDate}T10:00:00Z`,
+      endDateTime: `${baseDate}T11:00:00Z`,
+    });
+
+    if (!teamsResult) return null;
+
+    await db
+      .update(virtualMeetingsTable)
+      .set({
+        teamsJoinUrl: teamsResult.joinUrl,
+        graphMeetingId: teamsResult.meetingId,
+      })
+      .where(eq(virtualMeetingsTable.id, meetingId));
+
+    return { teamsJoinUrl: teamsResult.joinUrl, graphMeetingId: teamsResult.meetingId };
+  } catch (err) {
+    console.warn("[virtualMeetings] Non-fatal Teams provisioning error:", String(err));
+    return null;
+  }
+}
+
+async function cancelTeamsMeetingForRecord(
+  req: Request,
+  graphMeetingId: string,
+): Promise<void> {
+  try {
+    const token = await getGraphAccessToken(req);
+    if (token) await cancelTeamsMeeting(token, graphMeetingId);
+  } catch (err) {
+    console.warn("[virtualMeetings] Non-fatal Teams cancel error:", String(err));
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 router.get("/virtual-meetings", async (req, res): Promise<void> => {
   const parsed = ListVirtualMeetingsQueryParams.safeParse(req.query);
@@ -77,6 +141,24 @@ router.post("/virtual-meetings", async (req, res): Promise<void> => {
       scheduledDate: parsed.data.scheduledDate ? toDateStr(parsed.data.scheduledDate) : undefined,
     })
     .returning();
+
+  // ── Teams provisioning for meetings created directly as "scheduled" ───────
+  // When a leader schedules a meeting from the Suggestions Hub without going
+  // through the suggested→scheduled transition, Teams must still be provisioned.
+  if (meeting.status === "scheduled" && !meeting.teamsJoinUrl) {
+    const teamsData = await provisionTeamsMeeting(
+      req,
+      meeting.id,
+      meeting.title,
+      meeting.scheduledDate,
+    );
+    if (teamsData) {
+      meeting.teamsJoinUrl = teamsData.teamsJoinUrl;
+      meeting.graphMeetingId = teamsData.graphMeetingId;
+    }
+  }
+  // ─────────────────────────────────────────────────────────────────────────
+
   res.status(201).json(await meetingWithMeta(meeting));
 });
 
@@ -113,8 +195,19 @@ router.patch("/virtual-meetings/:id", async (req, res): Promise<void> => {
     return;
   }
 
+  // Pre-fetch to read the previous status and Teams IDs before mutation.
+  const [current] = await db
+    .select()
+    .from(virtualMeetingsTable)
+    .where(eq(virtualMeetingsTable.id, params.data.id));
+
+  if (!current) {
+    res.status(404).json({ error: "Virtual meeting not found" });
+    return;
+  }
+
   const { scheduledDate, ...restData } = parsed.data;
-  const setData = {
+  const setData: Record<string, unknown> = {
     ...restData,
     ...(scheduledDate !== undefined
       ? { scheduledDate: scheduledDate ? toDateStr(scheduledDate) : undefined }
@@ -132,6 +225,39 @@ router.patch("/virtual-meetings/:id", async (req, res): Promise<void> => {
     return;
   }
 
+  // ── Teams meeting lifecycle via shared helper ─────────────────────────────
+  const newStatus = parsed.data.status;
+
+  if (newStatus === "scheduled" && current.status !== "scheduled") {
+    if (!meeting.teamsJoinUrl) {
+      const teamsData = await provisionTeamsMeeting(
+        req,
+        meeting.id,
+        meeting.title,
+        meeting.scheduledDate,
+      );
+      if (teamsData) {
+        meeting.teamsJoinUrl = teamsData.teamsJoinUrl;
+        meeting.graphMeetingId = teamsData.graphMeetingId;
+      }
+    }
+  } else if (newStatus === "cancelled" && current.status !== "cancelled") {
+    // Cancel the Graph meeting (best-effort) then clear the persisted IDs so
+    // the UI no longer shows the now-dead join link, and so that transitioning
+    // this record back to "scheduled" provisions a fresh Teams meeting rather
+    // than retaining the stale/invalid data.
+    if (meeting.graphMeetingId) {
+      await cancelTeamsMeetingForRecord(req, meeting.graphMeetingId);
+    }
+    await db
+      .update(virtualMeetingsTable)
+      .set({ teamsJoinUrl: null, graphMeetingId: null })
+      .where(eq(virtualMeetingsTable.id, meeting.id));
+    meeting.teamsJoinUrl = null;
+    meeting.graphMeetingId = null;
+  }
+  // ─────────────────────────────────────────────────────────────────────────
+
   res.json(await meetingWithMeta(meeting));
 });
 
@@ -142,15 +268,23 @@ router.delete("/virtual-meetings/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  const [meeting] = await db
-    .delete(virtualMeetingsTable)
-    .where(eq(virtualMeetingsTable.id, params.data.id))
-    .returning();
+  const [existing] = await db
+    .select()
+    .from(virtualMeetingsTable)
+    .where(eq(virtualMeetingsTable.id, params.data.id));
 
-  if (!meeting) {
+  if (!existing) {
     res.status(404).json({ error: "Virtual meeting not found" });
     return;
   }
+
+  if (existing.graphMeetingId) {
+    await cancelTeamsMeetingForRecord(req, existing.graphMeetingId);
+  }
+
+  await db
+    .delete(virtualMeetingsTable)
+    .where(eq(virtualMeetingsTable.id, params.data.id));
 
   res.sendStatus(204);
 });

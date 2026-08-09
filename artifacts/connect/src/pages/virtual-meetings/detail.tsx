@@ -7,7 +7,7 @@ import {
   getGetVirtualMeetingQueryKey, getListVirtualMeetingParticipantsQueryKey,
   getListVirtualMeetingsQueryKey,
 } from '@workspace/api-client-react';
-import { Video, Calendar as CalendarIcon, Users, User, MessageSquare, Check, X, Plus, Trash2 } from 'lucide-react';
+import { Video, Calendar as CalendarIcon, Users, User, MessageSquare, Check, X, Plus, Trash2, ExternalLink } from 'lucide-react';
 import { format } from 'date-fns';
 import { useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
@@ -116,6 +116,19 @@ export default function VirtualMeetingDetail() {
           </div>
 
           <div className="flex flex-col gap-2 shrink-0">
+            {/* Teams meeting join link — only shown for active (non-cancelled) meetings */}
+            {(meeting as any).teamsJoinUrl && meeting.status !== 'cancelled' && (
+              <a
+                href={(meeting as any).teamsJoinUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-4 py-2 bg-indigo-600 text-white font-medium rounded-md shadow-sm hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2"
+              >
+                <Video className="h-4 w-4" />
+                Join Teams Meeting
+                <ExternalLink className="h-3.5 w-3.5 opacity-70" />
+              </a>
+            )}
             {/* Leaders and above can update meeting status */}
             {isLeader && meeting.status === 'suggested' && (
               <button

@@ -145,6 +145,9 @@ router.get("/callback", async (req, res) => {
         return;
       }
       req.session.user = user;
+      // Store the MSAL local account ID so graph.ts can later acquire
+      // Graph tokens silently via acquireTokenSilent.
+      req.session.msalAccountId = result.account!.localAccountId;
       res.redirect(getFrontendOrigin() || "/");
     });
   } catch (err) {

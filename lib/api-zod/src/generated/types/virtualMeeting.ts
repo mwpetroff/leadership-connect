@@ -20,6 +20,16 @@ export interface VirtualMeeting {
   hostId?: number | null;
   host?: Person;
   participantCount?: number;
+  /**
+     * Microsoft Teams meeting join URL, populated when the meeting is scheduled via Graph API.
+     * @nullable
+     */
+  teamsJoinUrl?: string | null;
+  /**
+     * Microsoft Graph online meeting ID for cancellation.
+     * @nullable
+     */
+  graphMeetingId?: string | null;
   createdAt: Date;
   updatedAt?: Date;
 }

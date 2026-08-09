@@ -126,6 +126,8 @@ export interface Invitation {
   status: InvitationStatus;
   /** @nullable */
   notes?: string | null;
+  /** @nullable */
+  graphEventId?: string | null;
   createdAt: string;
   updatedAt?: string;
   person?: Person;
@@ -154,6 +156,16 @@ export interface VirtualMeeting {
   hostId?: number | null;
   host?: Person;
   participantCount?: number;
+  /**
+     * Microsoft Teams meeting join URL, populated when the meeting is scheduled via Graph API.
+     * @nullable
+     */
+  teamsJoinUrl?: string | null;
+  /**
+     * Microsoft Graph online meeting ID for cancellation.
+     * @nullable
+     */
+  graphMeetingId?: string | null;
   createdAt: string;
   updatedAt?: string;
 }
@@ -228,6 +240,8 @@ export interface EventLeader {
 export interface InvitationInput {
   personId: number;
   notes?: string;
+  /** If true (default), create an Outlook calendar event via Microsoft Graph for this invitation. */
+  createCalendarEvent?: boolean;
 }
 
 export type InvitationUpdateStatus = typeof InvitationUpdateStatus[keyof typeof InvitationUpdateStatus];

@@ -1,4 +1,5 @@
 import * as msal from "@azure/msal-node";
+import { DbMsalCachePlugin } from "./msal-cache";
 import session from "express-session";
 import pgSession from "connect-pg-simple";
 import pg from "pg";
@@ -18,6 +19,8 @@ declare module "express-session" {
   interface SessionData {
     user?: SessionUser;
     authState?: string;
+    /** MSAL local account ID — used by graph.ts for silent token acquisition */
+    msalAccountId?: string;
   }
 }
 
@@ -111,6 +114,11 @@ export function getMsalClient(): msal.ConfidentialClientApplication {
         clientSecret: AZURE_AD_CLIENT_SECRET!,
         authority: `https://login.microsoftonline.com/${AZURE_AD_TENANT_ID}`,
       },
+      cache: {
+        // Persist the token cache to PostgreSQL so that Graph tokens survive
+        // API server restarts and work across multiple replicas.
+        cachePlugin: new DbMsalCachePlugin(),
+      },
       system: {
         loggerOptions: {
           loggerCallback: () => {},
@@ -123,7 +131,19 @@ export function getMsalClient(): msal.ConfidentialClientApplication {
   return _msalClient;
 }
 
-export const MSAL_SCOPES = ["openid", "profile", "email", "offline_access"];
+export const MSAL_SCOPES = [
+  "openid",
+  "profile",
+  "email",
+  "offline_access",
+  // Graph delegated permissions — requested at login so the user consents
+  // once and tokens can be acquired silently for calendar/Teams operations.
+  "Calendars.ReadWrite",
+  "OnlineMeetings.ReadWrite",
+  // Required for POST /me/onlineMeetings and DELETE /me/onlineMeetings/{id}.
+  // Without this scope Graph returns 403 for delegated online-meeting operations.
+  "OnlineMeetings.ReadWrite.All",
+];
 
 // ── Session store ─────────────────────────────────────────────────────────────
 

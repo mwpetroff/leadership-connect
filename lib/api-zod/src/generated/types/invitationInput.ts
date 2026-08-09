@@ -9,4 +9,6 @@
 export interface InvitationInput {
   personId: number;
   notes?: string;
+  /** If true (default), create an Outlook calendar event via Microsoft Graph for this invitation. */
+  createCalendarEvent?: boolean;
 }

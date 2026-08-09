@@ -848,6 +848,8 @@ components:
           enum: [invited, attended, no_show, declined]
         notes:
           type: ["string", "null"]
+        graphEventId:
+          type: ["string", "null"]
         createdAt:
           type: string
           format: date-time
@@ -867,6 +869,9 @@ components:
           type: integer
         notes:
           type: string
+        createCalendarEvent:
+          type: boolean
+          description: "If true (default), create an Outlook calendar event via Microsoft Graph for this invitation."
 
     InvitationUpdate:
       type: object
@@ -900,6 +905,12 @@ components:
           $ref: "#/components/schemas/Person"
         participantCount:
           type: integer
+        teamsJoinUrl:
+          type: ["string", "null"]
+          description: "Microsoft Teams meeting join URL, populated when the meeting is scheduled via Graph API."
+        graphMeetingId:
+          type: ["string", "null"]
+          description: "Microsoft Graph online meeting ID for cancellation."
         createdAt:
           type: string
           format: date-time

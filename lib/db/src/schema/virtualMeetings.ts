@@ -17,6 +17,8 @@ export const virtualMeetingsTable = pgTable("virtual_meetings", {
   status: meetingStatusEnum("status").notNull().default("suggested"),
   notes: text("notes"),
   hostId: integer("host_id").references(() => peopleTable.id, { onDelete: "set null" }),
+  teamsJoinUrl: text("teams_join_url"),
+  graphMeetingId: text("graph_meeting_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

@@ -37,7 +37,10 @@ export default function SuggestionsHub() {
   const addParticipant = useAddVirtualMeetingParticipant();
 
   const handleInvite = (eventId: number, personId: number) => {
-    createInvite.mutate({ id: eventId, data: { personId, notes: 'Suggested from meetup hub' } as any });
+    createInvite.mutate({
+      id: eventId,
+      data: { personId, notes: 'Suggested from meetup hub', createCalendarEvent: true } as any,
+    });
   };
 
   const handleScheduleVirtual = async (personId: number, leaderId?: number) => {

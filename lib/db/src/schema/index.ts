@@ -4,3 +4,4 @@ export * from "./eventLeaders";
 export * from "./invitations";
 export * from "./virtualMeetings";
 export * from "./virtualMeetingParticipants";
+export * from "./msalTokenCache";

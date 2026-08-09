@@ -169,6 +169,7 @@ export const GetPersonEngagementResponse = zod.object({
   "personId": zod.number().int(),
   "status": zod.enum(['invited', 'attended', 'no_show', 'declined']),
   "notes": zod.string().nullish(),
+  "graphEventId": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().optional(),
   "person": zod.object({
@@ -221,6 +222,8 @@ export const GetPersonEngagementResponse = zod.object({
   "updatedAt": zod.coerce.date().optional()
 }).optional(),
   "participantCount": zod.number().int().optional(),
+  "teamsJoinUrl": zod.string().nullish().describe('Microsoft Teams meeting join URL, populated when the meeting is scheduled via Graph API.'),
+  "graphMeetingId": zod.string().nullish().describe('Microsoft Graph online meeting ID for cancellation.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().optional()
 })),
@@ -427,6 +430,7 @@ export const ListEventInvitationsResponseItem = zod.object({
   "personId": zod.number().int(),
   "status": zod.enum(['invited', 'attended', 'no_show', 'declined']),
   "notes": zod.string().nullish(),
+  "graphEventId": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().optional(),
   "person": zod.object({
@@ -470,7 +474,8 @@ export const CreateInvitationParams = zod.object({
 
 export const CreateInvitationBody = zod.object({
   "personId": zod.number().int(),
-  "notes": zod.string().optional()
+  "notes": zod.string().optional(),
+  "createCalendarEvent": zod.boolean().optional().describe('If true (default), create an Outlook calendar event via Microsoft Graph for this invitation.')
 })
 
 export const CreateInvitationResponse = zod.object({
@@ -479,6 +484,7 @@ export const CreateInvitationResponse = zod.object({
   "personId": zod.number().int(),
   "status": zod.enum(['invited', 'attended', 'no_show', 'declined']),
   "notes": zod.string().nullish(),
+  "graphEventId": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().optional(),
   "person": zod.object({
@@ -530,6 +536,7 @@ export const UpdateInvitationResponse = zod.object({
   "personId": zod.number().int(),
   "status": zod.enum(['invited', 'attended', 'no_show', 'declined']),
   "notes": zod.string().nullish(),
+  "graphEventId": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().optional(),
   "person": zod.object({
@@ -601,6 +608,8 @@ export const ListVirtualMeetingsResponseItem = zod.object({
   "updatedAt": zod.coerce.date().optional()
 }).optional(),
   "participantCount": zod.number().int().optional(),
+  "teamsJoinUrl": zod.string().nullish().describe('Microsoft Teams meeting join URL, populated when the meeting is scheduled via Graph API.'),
+  "graphMeetingId": zod.string().nullish().describe('Microsoft Graph online meeting ID for cancellation.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().optional()
 })
@@ -642,6 +651,8 @@ export const CreateVirtualMeetingResponse = zod.object({
   "updatedAt": zod.coerce.date().optional()
 }).optional(),
   "participantCount": zod.number().int().optional(),
+  "teamsJoinUrl": zod.string().nullish().describe('Microsoft Teams meeting join URL, populated when the meeting is scheduled via Graph API.'),
+  "graphMeetingId": zod.string().nullish().describe('Microsoft Graph online meeting ID for cancellation.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().optional()
 })
@@ -675,6 +686,8 @@ export const GetVirtualMeetingResponse = zod.object({
   "updatedAt": zod.coerce.date().optional()
 }).optional(),
   "participantCount": zod.number().int().optional(),
+  "teamsJoinUrl": zod.string().nullish().describe('Microsoft Teams meeting join URL, populated when the meeting is scheduled via Graph API.'),
+  "graphMeetingId": zod.string().nullish().describe('Microsoft Graph online meeting ID for cancellation.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().optional()
 })
@@ -719,6 +732,8 @@ export const UpdateVirtualMeetingResponse = zod.object({
   "updatedAt": zod.coerce.date().optional()
 }).optional(),
   "participantCount": zod.number().int().optional(),
+  "teamsJoinUrl": zod.string().nullish().describe('Microsoft Teams meeting join URL, populated when the meeting is scheduled via Graph API.'),
+  "graphMeetingId": zod.string().nullish().describe('Microsoft Graph online meeting ID for cancellation.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().optional()
 })

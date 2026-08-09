@@ -16,6 +16,8 @@ export interface Invitation {
   status: InvitationStatus;
   /** @nullable */
   notes?: string | null;
+  /** @nullable */
+  graphEventId?: string | null;
   createdAt: Date;
   updatedAt?: Date;
   person?: Person;

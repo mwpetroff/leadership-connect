@@ -35,6 +35,8 @@ export default function EventDetail() {
   const [deleteInviteId, setDeleteInviteId] = useState<number | null>(null);
   const [removeLeaderId, setRemoveLeaderId] = useState<number | null>(null);
   const [showDeleteEvent, setShowDeleteEvent] = useState(false);
+  /** Whether to request a Microsoft Graph calendar invite with each new invitation */
+  const [calendarInvite, setCalendarInvite] = useState(true);
 
   const { data: event, isLoading: loadingEvent } = useGetEvent(eventId, {
     query: { enabled: !!eventId, queryKey: getGetEventQueryKey(eventId) },
@@ -228,15 +230,27 @@ export default function EventDetail() {
 
       {activeTab === 'invites' && (
         <div className="space-y-4">
-          <div className="flex justify-between items-center">
+          <div className="flex justify-between items-center gap-4">
             <h2 className="text-lg font-semibold">Staff Invitations</h2>
             {isLeader && (
-              <button
-                onClick={() => setShowInviteStaff(true)}
-                className="text-sm bg-primary/10 text-primary hover:bg-primary/20 font-medium px-3 py-1.5 rounded flex items-center gap-1.5 transition-colors"
-              >
-                <Plus className="h-4 w-4" /> Invite Staff
-              </button>
+              <div className="flex items-center gap-3">
+                {/* Per-invite calendar opt-in (visible to leaders+) */}
+                <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={calendarInvite}
+                    onChange={(e) => setCalendarInvite(e.target.checked)}
+                    className="accent-primary h-3.5 w-3.5"
+                  />
+                  📅 Create calendar invite
+                </label>
+                <button
+                  onClick={() => setShowInviteStaff(true)}
+                  className="text-sm bg-primary/10 text-primary hover:bg-primary/20 font-medium px-3 py-1.5 rounded flex items-center gap-1.5 transition-colors"
+                >
+                  <Plus className="h-4 w-4" /> Invite Staff
+                </button>
+              </div>
             )}
           </div>
           <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
@@ -381,7 +395,7 @@ export default function EventDetail() {
       <PersonPicker
         open={showInviteStaff}
         onClose={() => setShowInviteStaff(false)}
-        onSelect={(person) => createInvitation.mutate({ id: eventId, data: { personId: person.id } } as any)}
+        onSelect={(person) => createInvitation.mutate({ id: eventId, data: { personId: person.id, createCalendarEvent: calendarInvite } } as any)}
         title="Invite Staff to Event"
         description="Select a staff member to invite. Already-invited staff are excluded."
         excludeIds={invitedIds}
