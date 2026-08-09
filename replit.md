@@ -1,10 +1,11 @@
-# [Project name]
+# Leadership Connect
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+A leadership engagement platform that helps executives and secondary leaders stay connected with staff through smart in-person meetup suggestions and virtual touchpoint tracking.
 
 ## Run & Operate
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
+- `pnpm --filter @workspace/connect run dev` — run the frontend (port 20001)
+- `pnpm --filter @workspace/api-server run dev` — run the API server (port 8080)
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
@@ -14,23 +15,37 @@ _Replace the heading above with the project's name, and this line with one sente
 ## Stack
 
 - pnpm workspaces, Node.js 24, TypeScript 5.9
+- Frontend: React 19 + Vite + Wouter + TanStack Query + Tailwind CSS v4
 - API: Express 5
 - DB: PostgreSQL + Drizzle ORM
-- Validation: Zod (`zod/v4`), `drizzle-zod`
+- Validation: Zod (v3), `drizzle-zod`
 - API codegen: Orval (from OpenAPI spec)
 - Build: esbuild (CJS bundle)
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `lib/api-spec/openapi.yaml` — single source of truth for all API contracts
+- `lib/db/src/schema/` — Drizzle table definitions (people, events, eventLeaders, invitations, virtualMeetings, virtualMeetingParticipants)
+- `artifacts/api-server/src/routes/` — Express route handlers (people, events, invitations, virtualMeetings, dashboard, suggestions)
+- `artifacts/connect/src/pages/` — React pages (dashboard, people, events, virtual-meetings, suggestions)
+- `lib/api-client-react/src/generated/` — generated React Query hooks (do not edit)
+- `lib/api-zod/src/generated/` — generated Zod validation schemas (do not edit)
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- OpenAPI-first: spec drives codegen which drives both frontend hooks and backend Zod validators
+- `zod.int()` is not valid in Zod v3 — if re-running codegen, run `sed -i 's/zod\.int()/zod.number().int()/g' lib/api-zod/src/generated/api.ts` to patch the generated file
+- People roles: `executive`, `secondary_leader`, `staff` — suggestions only target `staff` for touchpoint gaps
+- Suggestions use state-level proximity matching (same state → same city ranked higher); no geocoding
+- "Needs touchpoint" threshold: 90 days without in-person attendance or completed virtual meeting
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+- **Dashboard**: KPI cards, priority virtual touchpoints, upcoming in-person opportunities, recent activity feed
+- **People**: Searchable/filterable directory by role; per-person engagement history
+- **Events**: In-person events with type, location, leader roster, invitation list, attendance tracking
+- **Virtual Meetings**: Manage suggested/scheduled/completed virtual touchpoints with participants
+- **Suggestions Hub**: Two-panel triage — in-person meetup suggestions by event location, virtual suggestions for gap staff
 
 ## User preferences
 
@@ -38,7 +53,9 @@ _Populate as you build — explicit user instructions worth remembering across s
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- After running codegen, always patch `zod.int()` → `zod.number().int()` in `lib/api-zod/src/generated/api.ts` (Orval 8.23 generates Zod v4 syntax but the workspace uses Zod v3)
+- `pnpm --filter @workspace/db run push-force` if schema push fails with column conflicts
+- The frontend uses `@radix-ui/react-icons` — must be installed as a devDependency of `@workspace/connect`
 
 ## Pointers
 

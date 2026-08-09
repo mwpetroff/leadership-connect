@@ -3,20 +3,32 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Leadership Engagement Platform API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: people
+    description: Employee and leader management
+  - name: events
+    description: In-person event management
+  - name: invitations
+    description: Event invitation and attendance tracking
+  - name: virtualMeetings
+    description: Virtual meeting management
+  - name: dashboard
+    description: Summary and analytics
+  - name: suggestions
+    description: Smart engagement suggestions
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,13 +36,1033 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # ─── People ───────────────────────────────────────────────────────────────
+  /people:
+    get:
+      operationId: listPeople
+      tags: [people]
+      summary: List all people
+      parameters:
+        - in: query
+          name: role
+          schema:
+            type: string
+            enum: [executive, secondary_leader, staff]
+        - in: query
+          name: search
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of people
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Person"
+    post:
+      operationId: createPerson
+      tags: [people]
+      summary: Create a new person
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PersonInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Person"
+
+  /people/{id}:
+    get:
+      operationId: getPerson
+      tags: [people]
+      summary: Get a person by ID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Person found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Person"
+        "404":
+          description: Not found
+    patch:
+      operationId: updatePerson
+      tags: [people]
+      summary: Update a person
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PersonUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Person"
+        "404":
+          description: Not found
+    delete:
+      operationId: deletePerson
+      tags: [people]
+      summary: Delete a person
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+
+  /people/{id}/engagement:
+    get:
+      operationId: getPersonEngagement
+      tags: [people]
+      summary: Get engagement history for a person
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Engagement history
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PersonEngagement"
+        "404":
+          description: Not found
+
+  # ─── Events ───────────────────────────────────────────────────────────────
+  /events:
+    get:
+      operationId: listEvents
+      tags: [events]
+      summary: List all events
+      parameters:
+        - in: query
+          name: upcoming
+          schema:
+            type: boolean
+        - in: query
+          name: type
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Event"
+    post:
+      operationId: createEvent
+      tags: [events]
+      summary: Create a new event
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EventInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Event"
+
+  /events/{id}:
+    get:
+      operationId: getEvent
+      tags: [events]
+      summary: Get an event by ID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Event found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Event"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateEvent
+      tags: [events]
+      summary: Update an event
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EventUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Event"
+        "404":
+          description: Not found
+    delete:
+      operationId: deleteEvent
+      tags: [events]
+      summary: Delete an event
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+
+  /events/{id}/leaders:
+    get:
+      operationId: listEventLeaders
+      tags: [events]
+      summary: List leaders attending an event
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of leaders at this event
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Person"
+
+  /events/{eventId}/leaders/{personId}:
+    post:
+      operationId: addEventLeader
+      tags: [events]
+      summary: Add a leader to an event
+      parameters:
+        - in: path
+          name: eventId
+          required: true
+          schema:
+            type: integer
+        - in: path
+          name: personId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "201":
+          description: Leader added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventLeader"
+        "409":
+          description: Already added
+    delete:
+      operationId: removeEventLeader
+      tags: [events]
+      summary: Remove a leader from an event
+      parameters:
+        - in: path
+          name: eventId
+          required: true
+          schema:
+            type: integer
+        - in: path
+          name: personId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Removed
+        "404":
+          description: Not found
+
+  # ─── Invitations ──────────────────────────────────────────────────────────
+  /events/{id}/invitations:
+    get:
+      operationId: listEventInvitations
+      tags: [invitations]
+      summary: List all invitations for an event
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of invitations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Invitation"
+    post:
+      operationId: createInvitation
+      tags: [invitations]
+      summary: Invite a person to an event
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InvitationInput"
+      responses:
+        "201":
+          description: Invitation created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Invitation"
+
+  /invitations/{id}:
+    patch:
+      operationId: updateInvitation
+      tags: [invitations]
+      summary: Update attendance status for an invitation
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InvitationUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Invitation"
+        "404":
+          description: Not found
+    delete:
+      operationId: deleteInvitation
+      tags: [invitations]
+      summary: Remove an invitation
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # ─── Virtual Meetings ─────────────────────────────────────────────────────
+  /virtual-meetings:
+    get:
+      operationId: listVirtualMeetings
+      tags: [virtualMeetings]
+      summary: List all virtual meetings
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [suggested, scheduled, completed, cancelled]
+      responses:
+        "200":
+          description: List of virtual meetings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/VirtualMeeting"
+    post:
+      operationId: createVirtualMeeting
+      tags: [virtualMeetings]
+      summary: Create a virtual meeting
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VirtualMeetingInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VirtualMeeting"
+
+  /virtual-meetings/{id}:
+    get:
+      operationId: getVirtualMeeting
+      tags: [virtualMeetings]
+      summary: Get a virtual meeting by ID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Virtual meeting found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VirtualMeeting"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateVirtualMeeting
+      tags: [virtualMeetings]
+      summary: Update a virtual meeting
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VirtualMeetingUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VirtualMeeting"
+        "404":
+          description: Not found
+    delete:
+      operationId: deleteVirtualMeeting
+      tags: [virtualMeetings]
+      summary: Delete a virtual meeting
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /virtual-meetings/{id}/participants:
+    get:
+      operationId: listVirtualMeetingParticipants
+      tags: [virtualMeetings]
+      summary: List participants in a virtual meeting
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of participants
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Person"
+    post:
+      operationId: addVirtualMeetingParticipant
+      tags: [virtualMeetings]
+      summary: Add a participant to a virtual meeting
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ParticipantInput"
+      responses:
+        "201":
+          description: Participant added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VirtualMeetingParticipant"
+
+  /virtual-meetings/{meetingId}/participants/{personId}:
+    delete:
+      operationId: removeVirtualMeetingParticipant
+      tags: [virtualMeetings]
+      summary: Remove a participant from a virtual meeting
+      parameters:
+        - in: path
+          name: meetingId
+          required: true
+          schema:
+            type: integer
+        - in: path
+          name: personId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Removed
+
+  # ─── Dashboard ────────────────────────────────────────────────────────────
+  /dashboard/summary:
+    get:
+      operationId: getDashboardSummary
+      tags: [dashboard]
+      summary: Get high-level engagement summary and stats
+      responses:
+        "200":
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+
+  # ─── Suggestions ──────────────────────────────────────────────────────────
+  /suggestions/meetups:
+    get:
+      operationId: getMeetupSuggestions
+      tags: [suggestions]
+      summary: Suggest in-person meetups based on event proximity
+      responses:
+        "200":
+          description: List of meetup suggestions grouped by event
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MeetupSuggestion"
+
+  /suggestions/virtual:
+    get:
+      operationId: getVirtualSuggestions
+      tags: [suggestions]
+      summary: Suggest virtual meetings for staff with no recent touchpoints
+      responses:
+        "200":
+          description: List of people who need virtual touchpoints
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/VirtualSuggestion"
+
 components:
   schemas:
     HealthStatus:
       type: object
+      required: [status]
       properties:
         status:
           type: string
-      required:
-        - status
 
+    # ─── Person ─────────────────────────────────────────────────────────────
+    Person:
+      type: object
+      required: [id, name, email, role, homeCity, homeState, createdAt]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+        title:
+          type: ["string", "null"]
+        department:
+          type: ["string", "null"]
+        role:
+          type: string
+          enum: [executive, secondary_leader, staff]
+        homeCity:
+          type: string
+        homeState:
+          type: string
+        notes:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    PersonInput:
+      type: object
+      required: [name, email, role, homeCity, homeState]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        email:
+          type: string
+        title:
+          type: string
+        department:
+          type: string
+        role:
+          type: string
+          enum: [executive, secondary_leader, staff]
+        homeCity:
+          type: string
+          minLength: 1
+        homeState:
+          type: string
+          minLength: 1
+        notes:
+          type: string
+
+    PersonUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        email:
+          type: string
+        title:
+          type: string
+        department:
+          type: string
+        role:
+          type: string
+          enum: [executive, secondary_leader, staff]
+        homeCity:
+          type: string
+        homeState:
+          type: string
+        notes:
+          type: string
+
+    PersonEngagement:
+      type: object
+      required: [person, invitations, virtualMeetings, daysSinceLastTouchpoint]
+      properties:
+        person:
+          $ref: "#/components/schemas/Person"
+        invitations:
+          type: array
+          items:
+            $ref: "#/components/schemas/Invitation"
+        virtualMeetings:
+          type: array
+          items:
+            $ref: "#/components/schemas/VirtualMeeting"
+        daysSinceLastTouchpoint:
+          type: ["integer", "null"]
+        totalInPersonAttended:
+          type: integer
+        totalVirtualCompleted:
+          type: integer
+
+    # ─── Event ──────────────────────────────────────────────────────────────
+    Event:
+      type: object
+      required: [id, name, location, city, state, startDate, eventType, createdAt]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+        location:
+          type: string
+        city:
+          type: string
+        state:
+          type: string
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: ["string", "null"]
+          format: date
+        eventType:
+          type: string
+          enum: [summit, conference, marketing, leadership, regional, other]
+        leaderCount:
+          type: integer
+        inviteeCount:
+          type: integer
+        attendeeCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+
+    EventInput:
+      type: object
+      required: [name, location, city, state, startDate, eventType]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        description:
+          type: string
+        location:
+          type: string
+          minLength: 1
+        city:
+          type: string
+          minLength: 1
+        state:
+          type: string
+          minLength: 1
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        eventType:
+          type: string
+          enum: [summit, conference, marketing, leadership, regional, other]
+
+    EventUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        description:
+          type: string
+        location:
+          type: string
+        city:
+          type: string
+        state:
+          type: string
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        eventType:
+          type: string
+          enum: [summit, conference, marketing, leadership, regional, other]
+
+    EventLeader:
+      type: object
+      required: [eventId, personId]
+      properties:
+        eventId:
+          type: integer
+        personId:
+          type: integer
+        addedAt:
+          type: string
+          format: date-time
+
+    # ─── Invitation ──────────────────────────────────────────────────────────
+    Invitation:
+      type: object
+      required: [id, eventId, personId, status, createdAt]
+      properties:
+        id:
+          type: integer
+        eventId:
+          type: integer
+        personId:
+          type: integer
+        status:
+          type: string
+          enum: [invited, attended, no_show, declined]
+        notes:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        person:
+          $ref: "#/components/schemas/Person"
+        event:
+          $ref: "#/components/schemas/Event"
+
+    InvitationInput:
+      type: object
+      required: [personId]
+      properties:
+        personId:
+          type: integer
+        notes:
+          type: string
+
+    InvitationUpdate:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [invited, attended, no_show, declined]
+        notes:
+          type: string
+
+    # ─── Virtual Meeting ─────────────────────────────────────────────────────
+    VirtualMeeting:
+      type: object
+      required: [id, title, status, createdAt]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        scheduledDate:
+          type: ["string", "null"]
+          format: date
+        status:
+          type: string
+          enum: [suggested, scheduled, completed, cancelled]
+        notes:
+          type: ["string", "null"]
+        hostId:
+          type: ["integer", "null"]
+        host:
+          $ref: "#/components/schemas/Person"
+        participantCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    VirtualMeetingInput:
+      type: object
+      required: [title]
+      properties:
+        title:
+          type: string
+          minLength: 1
+        scheduledDate:
+          type: string
+          format: date
+        status:
+          type: string
+          enum: [suggested, scheduled, completed, cancelled]
+        notes:
+          type: string
+        hostId:
+          type: integer
+
+    VirtualMeetingUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+        scheduledDate:
+          type: string
+          format: date
+        status:
+          type: string
+          enum: [suggested, scheduled, completed, cancelled]
+        notes:
+          type: string
+        hostId:
+          type: integer
+
+    VirtualMeetingParticipant:
+      type: object
+      required: [meetingId, personId]
+      properties:
+        meetingId:
+          type: integer
+        personId:
+          type: integer
+        addedAt:
+          type: string
+          format: date-time
+
+    ParticipantInput:
+      type: object
+      required: [personId]
+      properties:
+        personId:
+          type: integer
+
+    # ─── Dashboard ───────────────────────────────────────────────────────────
+    DashboardSummary:
+      type: object
+      required: [totalPeople, totalEvents, upcomingEvents, recentActivity, engagementByRole, needsTouchpoint]
+      properties:
+        totalPeople:
+          type: integer
+        totalEvents:
+          type: integer
+        upcomingEvents:
+          type: integer
+        totalExecutives:
+          type: integer
+        totalSecondaryLeaders:
+          type: integer
+        totalStaff:
+          type: integer
+        staffNeedingTouchpoint:
+          type: integer
+        recentActivity:
+          type: array
+          items:
+            $ref: "#/components/schemas/ActivityItem"
+        engagementByRole:
+          type: array
+          items:
+            $ref: "#/components/schemas/RoleEngagement"
+        needsTouchpoint:
+          type: array
+          items:
+            $ref: "#/components/schemas/Person"
+
+    ActivityItem:
+      type: object
+      required: [type, description, timestamp]
+      properties:
+        type:
+          type: string
+          enum: [invitation, attendance, virtual_meeting, person_added, event_added]
+        description:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        personName:
+          type: ["string", "null"]
+        eventName:
+          type: ["string", "null"]
+
+    RoleEngagement:
+      type: object
+      required: [role, total, recentlyEngaged, neverEngaged]
+      properties:
+        role:
+          type: string
+        total:
+          type: integer
+        recentlyEngaged:
+          type: integer
+        neverEngaged:
+          type: integer
+
+    # ─── Suggestions ─────────────────────────────────────────────────────────
+    MeetupSuggestion:
+      type: object
+      required: [event, suggestedPeople, leaders]
+      properties:
+        event:
+          $ref: "#/components/schemas/Event"
+        leaders:
+          type: array
+          items:
+            $ref: "#/components/schemas/Person"
+        suggestedPeople:
+          type: array
+          items:
+            $ref: "#/components/schemas/SuggestedPerson"
+
+    SuggestedPerson:
+      type: object
+      required: [person, reason, daysSinceLastEvent]
+      properties:
+        person:
+          $ref: "#/components/schemas/Person"
+        reason:
+          type: string
+        daysSinceLastEvent:
+          type: ["integer", "null"]
+
+    VirtualSuggestion:
+      type: object
+      required: [person, daysSinceLastTouchpoint, reason]
+      properties:
+        person:
+          $ref: "#/components/schemas/Person"
+        daysSinceLastTouchpoint:
+          type: ["integer", "null"]
+        lastTouchpointType:
+          type: ["string", "null"]
+        reason:
+          type: string
+        suggestedLeaders:
+          type: array
+          items:
+            $ref: "#/components/schemas/Person"

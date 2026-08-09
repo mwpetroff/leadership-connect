@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Leadership Connect"
+description = "A leadership engagement platform that helps executives and secondary leaders stay connected with staff. Loads events and employee rosters, suggests in-person meetups based on proximity, tracks attendance, and flags staff who need virtual touchpoints."
+version = "1.0.0"
+id = "artifacts/connect"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 20001
+
+[services.development]
+run = "pnpm --filter @workspace/connect run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/connect", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/connect/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "20001"
+BASE_PATH = "/"
