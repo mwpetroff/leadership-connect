@@ -10,6 +10,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/components/ui/use-toast';
 import { PersonForm, type PersonFormValues } from '@/components/forms/PersonForm';
 import type { PersonRole, Person } from '@workspace/api-client-react';
+import { useAuth } from '@/lib/auth';
 
 function RoleBadge({ role }: { role: string }) {
   if (role === 'executive') return <span className="inline-flex items-center rounded-md bg-indigo-50 px-2 py-1 text-xs font-medium text-indigo-700 ring-1 ring-inset ring-indigo-700/10 uppercase tracking-wider">Executive</span>;
@@ -25,6 +26,7 @@ export default function PeopleDirectory() {
 
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { isAdmin } = useAuth();
 
   const { data: people, isLoading } = useListPeople(
     { search, role: roleFilter },
@@ -69,12 +71,14 @@ export default function PeopleDirectory() {
           <h1 className="text-3xl font-bold tracking-tight text-foreground">People Directory</h1>
           <p className="text-muted-foreground mt-1">Search and filter all team members.</p>
         </div>
-        <button
-          onClick={() => setShowAdd(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground font-medium rounded-md shadow-sm hover:bg-primary/90 transition-colors"
-        >
-          <Plus className="h-4 w-4" /> Add Person
-        </button>
+        {isAdmin && (
+          <button
+            onClick={() => setShowAdd(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground font-medium rounded-md shadow-sm hover:bg-primary/90 transition-colors"
+          >
+            <Plus className="h-4 w-4" /> Add Person
+          </button>
+        )}
       </div>
 
       <div className="bg-card p-4 rounded-xl border border-border shadow-sm flex flex-col sm:flex-row gap-4">
@@ -153,13 +157,15 @@ export default function PeopleDirectory() {
                     </td>
                     <td className="py-3 px-4 text-right">
                       <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-end gap-2">
-                        <button
-                          onClick={() => setEditPerson(person)}
-                          className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
-                          title="Edit"
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                        </button>
+                        {isAdmin && (
+                          <button
+                            onClick={() => setEditPerson(person)}
+                            className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
+                            title="Edit"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                        )}
                         <Link
                           href={`/people/${person.id}`}
                           className="px-3 py-1.5 bg-secondary text-secondary-foreground text-xs font-medium rounded hover:bg-secondary/80"

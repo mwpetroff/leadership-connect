@@ -13,10 +13,12 @@ import { MapPin, Calendar, Video, ArrowRight, UserPlus, Zap, Check } from 'lucid
 import { format } from 'date-fns';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/components/ui/use-toast';
+import { useAuth } from '@/lib/auth';
 
 export default function SuggestionsHub() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { isLeader } = useAuth();
 
   const { data: meetupSuggestions, isLoading: loadingMeetups } = useGetMeetupSuggestions();
   const { data: virtualSuggestions, isLoading: loadingVirtual } = useGetVirtualSuggestions();
@@ -134,13 +136,15 @@ export default function SuggestionsHub() {
                               </div>
                             </div>
                           </div>
-                          <button 
-                            onClick={() => handleInvite(meetup.event.id, sp.person.id)}
-                            disabled={createInvite.isPending}
-                            className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground text-xs font-medium rounded transition-colors"
-                          >
-                            <UserPlus className="h-3.5 w-3.5" /> Invite
-                          </button>
+                          {isLeader && (
+                            <button 
+                              onClick={() => handleInvite(meetup.event.id, sp.person.id)}
+                              disabled={createInvite.isPending}
+                              className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground text-xs font-medium rounded transition-colors"
+                            >
+                              <UserPlus className="h-3.5 w-3.5" /> Invite
+                            </button>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -198,7 +202,7 @@ export default function SuggestionsHub() {
                             )}
                           </div>
                           
-                          {vs.suggestedLeaders && vs.suggestedLeaders.length > 0 && (
+                          {isLeader && vs.suggestedLeaders && vs.suggestedLeaders.length > 0 && (
                             <div className="mt-4 bg-muted/40 p-3 rounded-lg border border-border text-sm">
                               <span className="text-muted-foreground text-xs block mb-1.5 uppercase tracking-wider font-semibold">Suggested Hosts:</span>
                               <div className="flex gap-2">
@@ -218,13 +222,15 @@ export default function SuggestionsHub() {
                         </div>
                       </div>
                       
-                      <button 
-                        onClick={() => handleScheduleVirtual(vs.person.id)}
-                        disabled={createMeeting.isPending}
-                        className="shrink-0 px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-md shadow-sm hover:bg-primary/90 transition-colors"
-                      >
-                        Suggest 1:1
-                      </button>
+                      {isLeader && (
+                        <button 
+                          onClick={() => handleScheduleVirtual(vs.person.id)}
+                          disabled={createMeeting.isPending}
+                          className="shrink-0 px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-md shadow-sm hover:bg-primary/90 transition-colors"
+                        >
+                          Suggest 1:1
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}

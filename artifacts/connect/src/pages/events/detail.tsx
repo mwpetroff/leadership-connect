@@ -17,6 +17,7 @@ import { EventForm, type EventFormValues } from '@/components/forms/EventForm';
 import { PersonPicker } from '@/components/forms/PersonPicker';
 import { ConfirmDialog } from '@/components/forms/ConfirmDialog';
 import type { InvitationUpdateStatus } from '@workspace/api-client-react';
+import { useAuth } from '@/lib/auth';
 
 export default function EventDetail() {
   const { id } = useParams<{ id: string }>();
@@ -24,6 +25,8 @@ export default function EventDetail() {
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+
+  const { isAdmin, isLeader } = useAuth();
 
   const [activeTab, setActiveTab] = useState<'invites' | 'leaders'>('invites');
   const [showEdit, setShowEdit] = useState(false);
@@ -152,20 +155,22 @@ export default function EventDetail() {
             <h1 className="text-3xl md:text-4xl font-display font-bold text-foreground">{event.name}</h1>
             <p className="text-lg text-muted-foreground max-w-3xl">{event.description ?? 'No description provided.'}</p>
           </div>
-          <div className="flex gap-2 shrink-0">
-            <button
-              onClick={() => setShowEdit(true)}
-              className="px-4 py-2 bg-secondary text-secondary-foreground font-medium rounded-md shadow-sm hover:bg-secondary/80 transition-colors"
-            >
-              Edit Event
-            </button>
-            <button
-              onClick={() => setShowDeleteEvent(true)}
-              className="px-4 py-2 bg-card border border-red-200 text-red-600 font-medium rounded-md hover:bg-red-50 transition-colors"
-            >
-              <Trash2 className="h-4 w-4" />
-            </button>
-          </div>
+          {isAdmin && (
+            <div className="flex gap-2 shrink-0">
+              <button
+                onClick={() => setShowEdit(true)}
+                className="px-4 py-2 bg-secondary text-secondary-foreground font-medium rounded-md shadow-sm hover:bg-secondary/80 transition-colors"
+              >
+                Edit Event
+              </button>
+              <button
+                onClick={() => setShowDeleteEvent(true)}
+                className="px-4 py-2 bg-card border border-red-200 text-red-600 font-medium rounded-md hover:bg-red-50 transition-colors"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 py-6 border-t border-border">
@@ -225,12 +230,14 @@ export default function EventDetail() {
         <div className="space-y-4">
           <div className="flex justify-between items-center">
             <h2 className="text-lg font-semibold">Staff Invitations</h2>
-            <button
-              onClick={() => setShowInviteStaff(true)}
-              className="text-sm bg-primary/10 text-primary hover:bg-primary/20 font-medium px-3 py-1.5 rounded flex items-center gap-1.5 transition-colors"
-            >
-              <Plus className="h-4 w-4" /> Invite Staff
-            </button>
+            {isLeader && (
+              <button
+                onClick={() => setShowInviteStaff(true)}
+                className="text-sm bg-primary/10 text-primary hover:bg-primary/20 font-medium px-3 py-1.5 rounded flex items-center gap-1.5 transition-colors"
+              >
+                <Plus className="h-4 w-4" /> Invite Staff
+              </button>
+            )}
           </div>
           <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
             {loadingInvites ? (
@@ -270,23 +277,32 @@ export default function EventDetail() {
                       </td>
                       <td className="py-3 px-4 text-right">
                         <div className="flex items-center justify-end gap-2">
-                          <select
-                            value={inv.status}
-                            onChange={(e) => updateInvite.mutate({ id: inv.id, data: { status: e.target.value as InvitationUpdateStatus } })}
-                            disabled={updateInvite.isPending}
-                            className="text-xs bg-card border border-border rounded px-2 py-1 focus:ring-1 focus:ring-primary outline-none"
-                          >
-                            <option value="invited">Invited</option>
-                            <option value="attended">Attended</option>
-                            <option value="no_show">No Show</option>
-                            <option value="declined">Declined</option>
-                          </select>
-                          <button
-                            onClick={() => setDeleteInviteId(inv.id)}
-                            className="opacity-0 group-hover:opacity-100 p-1 text-muted-foreground hover:text-red-600 transition-all rounded"
-                          >
-                            <X className="h-4 w-4" />
-                          </button>
+                          {/* Status updates are leader-accessible */}
+                          {isLeader ? (
+                            <select
+                              value={inv.status}
+                              onChange={(e) => updateInvite.mutate({ id: inv.id, data: { status: e.target.value as InvitationUpdateStatus } })}
+                              disabled={updateInvite.isPending}
+                              className="text-xs bg-card border border-border rounded px-2 py-1 focus:ring-1 focus:ring-primary outline-none"
+                            >
+                              <option value="invited">Invited</option>
+                              <option value="attended">Attended</option>
+                              <option value="no_show">No Show</option>
+                              <option value="declined">Declined</option>
+                            </select>
+                          ) : (
+                            <span className="text-xs text-muted-foreground capitalize">
+                              {inv.status.replace('_', ' ')}
+                            </span>
+                          )}
+                          {isAdmin && (
+                            <button
+                              onClick={() => setDeleteInviteId(inv.id)}
+                              className="opacity-0 group-hover:opacity-100 p-1 text-muted-foreground hover:text-red-600 transition-all rounded"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -306,12 +322,14 @@ export default function EventDetail() {
         <div className="space-y-4">
           <div className="flex justify-between items-center">
             <h2 className="text-lg font-semibold">Attending Leaders</h2>
-            <button
-              onClick={() => setShowAddLeader(true)}
-              className="text-sm bg-primary/10 text-primary hover:bg-primary/20 font-medium px-3 py-1.5 rounded flex items-center gap-1.5 transition-colors"
-            >
-              <Plus className="h-4 w-4" /> Add Leader
-            </button>
+            {isAdmin && (
+              <button
+                onClick={() => setShowAddLeader(true)}
+                className="text-sm bg-primary/10 text-primary hover:bg-primary/20 font-medium px-3 py-1.5 rounded flex items-center gap-1.5 transition-colors"
+              >
+                <Plus className="h-4 w-4" /> Add Leader
+              </button>
+            )}
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
             {loadingLeaders ? (
@@ -328,12 +346,14 @@ export default function EventDetail() {
                     </Link>
                     <div className="text-xs text-muted-foreground truncate">{leader.title}</div>
                   </div>
-                  <button
-                    onClick={() => setRemoveLeaderId(leader.id)}
-                    className="opacity-0 group-hover:opacity-100 p-1 text-muted-foreground hover:text-red-600 transition-all rounded shrink-0"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
+                  {isAdmin && (
+                    <button
+                      onClick={() => setRemoveLeaderId(leader.id)}
+                      className="opacity-0 group-hover:opacity-100 p-1 text-muted-foreground hover:text-red-600 transition-all rounded shrink-0"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
                 </div>
               ))
             ) : (

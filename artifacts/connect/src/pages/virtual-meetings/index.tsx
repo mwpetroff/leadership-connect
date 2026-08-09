@@ -10,10 +10,12 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/components/ui/use-toast';
 import { VirtualMeetingForm, type VirtualMeetingFormValues } from '@/components/forms/VirtualMeetingForm';
 import type { ListVirtualMeetingsStatus } from '@workspace/api-client-react';
+import { useAuth } from '@/lib/auth';
 
 export default function VirtualMeetings() {
   const [statusFilter, setStatusFilter] = useState<ListVirtualMeetingsStatus | undefined>();
   const [showCreate, setShowCreate] = useState(false);
+  const { isAdmin } = useAuth();
 
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -60,12 +62,14 @@ export default function VirtualMeetings() {
           <h1 className="text-3xl font-bold tracking-tight text-foreground">Virtual Meetings</h1>
           <p className="text-muted-foreground mt-1">Track 1:1s, group syncs, and suggested touchpoints.</p>
         </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground font-medium rounded-md shadow-sm hover:bg-primary/90 transition-colors"
-        >
-          <Plus className="h-4 w-4" /> Schedule Meeting
-        </button>
+        {isAdmin && (
+          <button
+            onClick={() => setShowCreate(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground font-medium rounded-md shadow-sm hover:bg-primary/90 transition-colors"
+          >
+            <Plus className="h-4 w-4" /> Schedule Meeting
+          </button>
+        )}
       </div>
 
       <div className="flex flex-wrap gap-2 mb-6">

@@ -7,9 +7,11 @@ import {
   Video, 
   Lightbulb,
   Search,
-  Bell
+  Bell,
+  LogOut,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/lib/auth';
 
 interface ShellProps {
   children: React.ReactNode;
@@ -23,8 +25,27 @@ const navItems = [
   { name: 'Suggestions Hub', href: '/suggestions', icon: Lightbulb },
 ];
 
+function userInitials(name: string): string {
+  return name
+    .split(' ')
+    .map((n) => n[0])
+    .join('')
+    .substring(0, 2)
+    .toUpperCase();
+}
+
 export function Shell({ children }: ShellProps) {
   const [location] = useLocation();
+  const { user } = useAuth();
+
+  const displayName = user?.name ?? 'Unknown';
+  const displayEmail = user?.email ?? '';
+  const displayRole =
+    user?.role === 'admin'
+      ? 'Admin'
+      : user?.role === 'leader'
+        ? 'Leader'
+        : 'Staff';
 
   return (
     <div className="flex min-h-screen w-full bg-background flex-col md:flex-row">
@@ -41,7 +62,6 @@ export function Shell({ children }: ShellProps) {
         <div className="flex-1 overflow-auto py-4">
           <nav className="space-y-1 px-3">
             {navItems.map((item) => {
-              // Basic active logic: exact match for root, prefix match for others
               const isActive = item.href === '/' 
                 ? location === '/' 
                 : location.startsWith(item.href);
@@ -64,16 +84,25 @@ export function Shell({ children }: ShellProps) {
             })}
           </nav>
         </div>
-        <div className="p-4 border-t border-border">
+
+        {/* User card + sign-out */}
+        <div className="p-4 border-t border-border space-y-1">
           <div className="flex items-center gap-3 rounded-md px-3 py-2">
-            <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-medium text-xs">
-              JS
+            <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-medium text-xs shrink-0">
+              {userInitials(displayName)}
             </div>
-            <div className="flex flex-col">
-              <span className="text-sm font-medium leading-none text-foreground">John Smith</span>
-              <span className="text-xs text-muted-foreground mt-1">VP Operations</span>
+            <div className="flex flex-col min-w-0">
+              <span className="text-sm font-medium leading-none text-foreground truncate">{displayName}</span>
+              <span className="text-xs text-muted-foreground mt-0.5 truncate">{displayRole}</span>
             </div>
           </div>
+          <a
+            href="/api/auth/logout"
+            className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+          >
+            <LogOut className="h-4 w-4 shrink-0" />
+            Sign out
+          </a>
         </div>
       </aside>
 
@@ -98,10 +127,22 @@ export function Shell({ children }: ShellProps) {
             </div>
           </div>
           <div className="flex items-center gap-4 ml-auto">
+            {/* Mobile user avatar */}
+            <div className="md:hidden h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-medium text-xs">
+              {userInitials(displayName)}
+            </div>
             <button className="relative p-2 text-muted-foreground hover:text-foreground transition-colors rounded-full hover:bg-muted">
               <Bell className="h-5 w-5" />
               <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-destructive border-2 border-card"></span>
             </button>
+            {/* Mobile sign-out */}
+            <a
+              href="/api/auth/logout"
+              className="md:hidden p-2 text-muted-foreground hover:text-foreground transition-colors rounded-full hover:bg-muted"
+              title="Sign out"
+            >
+              <LogOut className="h-5 w-5" />
+            </a>
           </div>
         </header>
         

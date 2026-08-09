@@ -7,10 +7,12 @@ import { cn } from '@/lib/utils';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/components/ui/use-toast';
 import { EventForm, type EventFormValues } from '@/components/forms/EventForm';
+import { useAuth } from '@/lib/auth';
 
 export default function EventsList() {
   const [filterUpcoming, setFilterUpcoming] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
+  const { isAdmin } = useAuth();
 
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -53,12 +55,14 @@ export default function EventsList() {
           <h1 className="text-3xl font-bold tracking-tight text-foreground">Events</h1>
           <p className="text-muted-foreground mt-1">Manage in-person summits, conferences, and meetups.</p>
         </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground font-medium rounded-md shadow-sm hover:bg-primary/90 transition-colors"
-        >
-          <Plus className="h-4 w-4" /> Create Event
-        </button>
+        {isAdmin && (
+          <button
+            onClick={() => setShowCreate(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground font-medium rounded-md shadow-sm hover:bg-primary/90 transition-colors"
+          >
+            <Plus className="h-4 w-4" /> Create Event
+          </button>
+        )}
       </div>
 
       <div className="flex gap-2 mb-6 border-b border-border">

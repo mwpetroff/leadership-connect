@@ -12,6 +12,8 @@ import {
 } from 'wouter';
 
 import { Shell } from '@/components/layout/Shell';
+import { AuthProvider, useAuth } from '@/lib/auth';
+import LoginPage from '@/pages/login';
 import Dashboard from '@/pages/dashboard';
 import PeopleDirectory from '@/pages/people';
 import PersonDetail from '@/pages/people/detail';
@@ -28,9 +30,44 @@ const queryClient = new QueryClient({
       refetchOnWindowFocus: false,
     },
   },
+  // Redirect to login on any 401 — session expired or never established.
+  queryCache: undefined,
+  mutationCache: undefined,
 });
 
+// Global 401 handler: redirect to login whenever a query or mutation surfaces
+// an unauthenticated response (session expired mid-session).
+queryClient.getQueryCache().config.onError = (error: unknown) => {
+  if ((error as any)?.status === 401) {
+    window.location.href = '/api/auth/login';
+  }
+};
+queryClient.getMutationCache().config.onError = (error: unknown) => {
+  if ((error as any)?.status === 401) {
+    window.location.href = '/api/auth/login';
+  }
+};
+
 function Router() {
+  const { user, isLoading } = useAuth();
+
+  // Show a minimal loading screen while the session is being resolved.
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-3 text-muted-foreground">
+          <div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+          <span className="text-sm">Loading…</span>
+        </div>
+      </div>
+    );
+  }
+
+  // Unauthenticated: show login page regardless of the requested path.
+  if (!user) {
+    return <LoginPage />;
+  }
+
   return (
     <RoutedErrorBoundary>
       <Shell>
@@ -60,7 +97,9 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <WouterRouter base={import.meta.env.BASE_URL?.replace(/\/$/, '') || ''}>
-          <Router />
+          <AuthProvider>
+            <Router />
+          </AuthProvider>
         </WouterRouter>
         <Toaster />
       </TooltipProvider>

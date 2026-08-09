@@ -15,6 +15,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { PersonPicker } from '@/components/forms/PersonPicker';
 import { ConfirmDialog } from '@/components/forms/ConfirmDialog';
 import type { VirtualMeetingUpdateStatus } from '@workspace/api-client-react';
+import { useAuth } from '@/lib/auth';
 
 export default function VirtualMeetingDetail() {
   const { id } = useParams<{ id: string }>();
@@ -22,6 +23,8 @@ export default function VirtualMeetingDetail() {
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+
+  const { isAdmin, isLeader } = useAuth();
 
   const [showAddParticipant, setShowAddParticipant] = useState(false);
   const [removeParticipantId, setRemoveParticipantId] = useState<number | null>(null);
@@ -113,7 +116,8 @@ export default function VirtualMeetingDetail() {
           </div>
 
           <div className="flex flex-col gap-2 shrink-0">
-            {meeting.status === 'suggested' && (
+            {/* Leaders and above can update meeting status */}
+            {isLeader && meeting.status === 'suggested' && (
               <button
                 onClick={() => handleStatusChange('scheduled')}
                 disabled={updateMeeting.isPending}
@@ -122,7 +126,7 @@ export default function VirtualMeetingDetail() {
                 <CalendarIcon className="h-4 w-4" /> Schedule Now
               </button>
             )}
-            {meeting.status === 'scheduled' && (
+            {isLeader && meeting.status === 'scheduled' && (
               <button
                 onClick={() => handleStatusChange('completed')}
                 disabled={updateMeeting.isPending}
@@ -131,7 +135,7 @@ export default function VirtualMeetingDetail() {
                 <Check className="h-4 w-4" /> Mark Completed
               </button>
             )}
-            {(meeting.status === 'suggested' || meeting.status === 'scheduled') && (
+            {isLeader && (meeting.status === 'suggested' || meeting.status === 'scheduled') && (
               <button
                 onClick={() => handleStatusChange('cancelled')}
                 disabled={updateMeeting.isPending}
@@ -140,12 +144,14 @@ export default function VirtualMeetingDetail() {
                 <X className="h-4 w-4" /> Cancel
               </button>
             )}
-            <button
-              onClick={() => setShowDelete(true)}
-              className="px-4 py-2 bg-card border border-red-200 text-red-600 font-medium rounded-md hover:bg-red-50 transition-colors flex items-center justify-center gap-2"
-            >
-              <Trash2 className="h-4 w-4" /> Delete
-            </button>
+            {isAdmin && (
+              <button
+                onClick={() => setShowDelete(true)}
+                className="px-4 py-2 bg-card border border-red-200 text-red-600 font-medium rounded-md hover:bg-red-50 transition-colors flex items-center justify-center gap-2"
+              >
+                <Trash2 className="h-4 w-4" /> Delete
+              </button>
+            )}
           </div>
         </div>
 
@@ -200,12 +206,14 @@ export default function VirtualMeetingDetail() {
       <div className="space-y-4">
         <div className="flex justify-between items-center">
           <h2 className="text-xl font-semibold tracking-tight">Participants</h2>
-          <button
-            onClick={() => setShowAddParticipant(true)}
-            className="text-sm font-medium text-primary hover:underline flex items-center gap-1"
-          >
-            <Plus className="h-4 w-4" /> Add Participant
-          </button>
+          {isLeader && (
+            <button
+              onClick={() => setShowAddParticipant(true)}
+              className="text-sm font-medium text-primary hover:underline flex items-center gap-1"
+            >
+              <Plus className="h-4 w-4" /> Add Participant
+            </button>
+          )}
         </div>
 
         <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
@@ -251,12 +259,14 @@ export default function VirtualMeetingDetail() {
                       </td>
                       <td className="py-3 px-4 text-sm text-muted-foreground">{city}, {state}</td>
                       <td className="py-3 px-4 text-right">
-                        <button
-                          onClick={() => setRemoveParticipantId(personId)}
-                          className="opacity-0 group-hover:opacity-100 p-1 text-muted-foreground hover:text-red-600 transition-all rounded"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
+                        {isAdmin && (
+                          <button
+                            onClick={() => setRemoveParticipantId(personId)}
+                            className="opacity-0 group-hover:opacity-100 p-1 text-muted-foreground hover:text-red-600 transition-all rounded"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        )}
                       </td>
                     </tr>
                   );

@@ -14,6 +14,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { PersonForm, type PersonFormValues } from '@/components/forms/PersonForm';
 import { VirtualMeetingForm, type VirtualMeetingFormValues } from '@/components/forms/VirtualMeetingForm';
 import { ConfirmDialog } from '@/components/forms/ConfirmDialog';
+import { useAuth } from '@/lib/auth';
 
 function RoleBadge({ role }: { role: string }) {
   if (role === 'executive') return <span className="inline-flex items-center rounded-md bg-indigo-50 px-2 py-1 text-xs font-medium text-indigo-700 ring-1 ring-inset ring-indigo-700/10 uppercase tracking-wider">Executive</span>;
@@ -31,6 +32,8 @@ export default function PersonDetail() {
   const [showEdit, setShowEdit] = useState(false);
   const [showTouchpoint, setShowTouchpoint] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
+
+  const { isAdmin } = useAuth();
 
   const { data: person, isLoading: loadingPerson } = useGetPerson(personId, {
     query: { enabled: !!personId, queryKey: getGetPersonQueryKey(personId) },
@@ -130,24 +133,30 @@ export default function PersonDetail() {
             </div>
           </div>
           <div className="flex gap-2 flex-wrap shrink-0">
-            <button
-              onClick={() => setShowEdit(true)}
-              className="px-4 py-2 bg-secondary text-secondary-foreground font-medium rounded-md shadow-sm hover:bg-secondary/80 transition-colors"
-            >
-              Edit Profile
-            </button>
-            <button
-              onClick={() => setShowTouchpoint(true)}
-              className="px-4 py-2 bg-primary text-primary-foreground font-medium rounded-md shadow-sm hover:bg-primary/90 transition-colors"
-            >
-              Log Touchpoint
-            </button>
-            <button
-              onClick={() => setShowDelete(true)}
-              className="px-4 py-2 bg-card border border-red-200 text-red-600 font-medium rounded-md hover:bg-red-50 transition-colors"
-            >
-              <Trash2 className="h-4 w-4" />
-            </button>
+            {isAdmin && (
+              <button
+                onClick={() => setShowEdit(true)}
+                className="px-4 py-2 bg-secondary text-secondary-foreground font-medium rounded-md shadow-sm hover:bg-secondary/80 transition-colors"
+              >
+                Edit Profile
+              </button>
+            )}
+            {isAdmin && (
+              <button
+                onClick={() => setShowTouchpoint(true)}
+                className="px-4 py-2 bg-primary text-primary-foreground font-medium rounded-md shadow-sm hover:bg-primary/90 transition-colors"
+              >
+                Log Touchpoint
+              </button>
+            )}
+            {isAdmin && (
+              <button
+                onClick={() => setShowDelete(true)}
+                className="px-4 py-2 bg-card border border-red-200 text-red-600 font-medium rounded-md hover:bg-red-50 transition-colors"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            )}
           </div>
         </div>
 
