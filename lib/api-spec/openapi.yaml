@@ -377,6 +377,54 @@ paths:
               schema:
                 $ref: "#/components/schemas/Invitation"
 
+  /events/{id}/invitations/bulk:
+    post:
+      operationId: bulkCreateInvitations
+      tags: [invitations]
+      summary: Invite multiple people to an event in a single transaction
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BulkInvitationInput"
+      responses:
+        "201":
+          description: Bulk invitations result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BulkInvitationResult"
+    patch:
+      operationId: bulkUpdateInvitations
+      tags: [invitations]
+      summary: Update attendance status for multiple invitations in one call
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BulkInvitationStatusInput"
+      responses:
+        "200":
+          description: Bulk update result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BulkInvitationStatusResult"
+
   /invitations/{id}:
     patch:
       operationId: updateInvitation
@@ -881,6 +929,59 @@ components:
           enum: [invited, attended, no_show, declined]
         notes:
           type: string
+
+    BulkInvitationInput:
+      type: object
+      required: [personIds]
+      properties:
+        personIds:
+          type: array
+          items:
+            type: integer
+          minItems: 1
+        createCalendarEvent:
+          type: boolean
+          description: "If true (default), create Outlook calendar events for each new invitation."
+
+    BulkInvitationResult:
+      type: object
+      required: [created, skipped, invitations]
+      properties:
+        created:
+          type: integer
+          description: Number of new invitations created.
+        skipped:
+          type: integer
+          description: Number of people already invited (skipped, not re-invited).
+        invitations:
+          type: array
+          items:
+            $ref: "#/components/schemas/Invitation"
+
+    BulkInvitationStatusInput:
+      type: object
+      required: [updates]
+      properties:
+        updates:
+          type: array
+          items:
+            type: object
+            required: [id, status]
+            properties:
+              id:
+                type: integer
+              status:
+                type: string
+                enum: [invited, attended, no_show, declined]
+          minItems: 1
+
+    BulkInvitationStatusResult:
+      type: object
+      required: [updated]
+      properties:
+        updated:
+          type: integer
+          description: Number of invitation statuses updated.
 
     # ─── Virtual Meeting ─────────────────────────────────────────────────────
     VirtualMeeting:

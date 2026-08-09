@@ -1,10 +1,14 @@
 import { Router, type IRouter } from "express";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { db, invitationsTable, peopleTable, eventsTable } from "@workspace/db";
 import {
   ListEventInvitationsParams,
   CreateInvitationParams,
   CreateInvitationBody,
+  BulkCreateInvitationsParams,
+  BulkCreateInvitationsBody,
+  BulkUpdateInvitationsParams,
+  BulkUpdateInvitationsBody,
   UpdateInvitationParams,
   UpdateInvitationBody,
   DeleteInvitationParams,
@@ -137,6 +141,83 @@ router.post("/events/:id/invitations", async (req, res): Promise<void> => {
   // ─────────────────────────────────────────────────────────────────────────
 
   res.status(201).json(await invitationWithRelations(invitation));
+});
+
+// ── POST /events/:id/invitations/bulk ─────────────────────────────────────────
+// Creates invitations for multiple people in one request.
+// Already-invited people are silently skipped (returned in `skipped` count).
+// Calendar-event creation is skipped for bulk invites (too many Graph calls);
+// callers may pass createCalendarEvent: false or omit — it defaults to false.
+router.post("/events/:id/invitations/bulk", async (req, res): Promise<void> => {
+  const params = BulkCreateInvitationsParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const parsed = BulkCreateInvitationsBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const eventId = params.data.id;
+  // Deduplicate personIds within the request so `[1, 1]` does not insert two rows.
+  const uniquePersonIds = Array.from(new Set(parsed.data.personIds));
+
+  // Insert with ON CONFLICT DO NOTHING so concurrent single/bulk invite
+  // requests cannot race past the read-then-write gap and produce duplicates.
+  // The invitations table has a UNIQUE(event_id, person_id) constraint that
+  // the database enforces atomically.
+  const insertedRows = await db
+    .insert(invitationsTable)
+    .values(uniquePersonIds.map((personId) => ({ eventId, personId })))
+    .onConflictDoNothing()
+    .returning();
+
+  // Derive skipped count from the difference between what was requested and
+  // what the DB actually inserted. Both duplicates within the request and
+  // already-invited people (pre-existing rows) are counted as skipped.
+  const created = insertedRows.length;
+  const skipped = uniquePersonIds.length - created;
+
+  const enriched = await Promise.all(insertedRows.map(invitationWithRelations));
+
+  res.status(201).json({ created, skipped, invitations: enriched });
+});
+
+// ── PATCH /events/:id/invitations/bulk ────────────────────────────────────────
+// Bulk-updates invitation statuses. Used for post-event attendance marking.
+// Returns the number of rows actually updated (missing IDs are counted as 0).
+router.patch("/events/:id/invitations/bulk", async (req, res): Promise<void> => {
+  const params = BulkUpdateInvitationsParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const parsed = BulkUpdateInvitationsBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const eventId = params.data.id;
+
+  // Run updates in parallel; constrain each update to the event in the path
+  // so a caller cannot modify invitations belonging to a different event.
+  const results = await Promise.all(
+    parsed.data.updates.map(({ id, status }) =>
+      db
+        .update(invitationsTable)
+        .set({ status })
+        .where(and(eq(invitationsTable.id, id), eq(invitationsTable.eventId, eventId)))
+        .returning()
+    )
+  );
+
+  const updated = results.filter((r) => r.length > 0).length;
+  res.json({ updated });
 });
 
 router.patch("/invitations/:id", async (req, res): Promise<void> => {

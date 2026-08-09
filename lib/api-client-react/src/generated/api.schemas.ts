@@ -259,6 +259,46 @@ export interface InvitationUpdate {
   notes?: string;
 }
 
+export interface BulkInvitationInput {
+  /** @minItems 1 */
+  personIds: number[];
+  /** If true (default), create Outlook calendar events for each new invitation. */
+  createCalendarEvent?: boolean;
+}
+
+export interface BulkInvitationResult {
+  /** Number of new invitations created. */
+  created: number;
+  /** Number of people already invited (skipped, not re-invited). */
+  skipped: number;
+  invitations: Invitation[];
+}
+
+export type BulkInvitationStatusInputUpdatesItemStatus = typeof BulkInvitationStatusInputUpdatesItemStatus[keyof typeof BulkInvitationStatusInputUpdatesItemStatus];
+
+
+export const BulkInvitationStatusInputUpdatesItemStatus = {
+  invited: 'invited',
+  attended: 'attended',
+  no_show: 'no_show',
+  declined: 'declined',
+} as const;
+
+export type BulkInvitationStatusInputUpdatesItem = {
+  id: number;
+  status: BulkInvitationStatusInputUpdatesItemStatus;
+};
+
+export interface BulkInvitationStatusInput {
+  /** @minItems 1 */
+  updates: BulkInvitationStatusInputUpdatesItem[];
+}
+
+export interface BulkInvitationStatusResult {
+  /** Number of invitation statuses updated. */
+  updated: number;
+}
+
 export type VirtualMeetingInputStatus = typeof VirtualMeetingInputStatus[keyof typeof VirtualMeetingInputStatus];
 
 

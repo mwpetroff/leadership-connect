@@ -1,24 +1,81 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link } from 'wouter';
 import { 
   useGetMeetupSuggestions, 
   useGetVirtualSuggestions,
   useCreateInvitation,
+  useBulkCreateInvitations,
   useCreateVirtualMeeting,
   useAddVirtualMeetingParticipant,
   getGetMeetupSuggestionsQueryKey,
   getGetVirtualSuggestionsQueryKey
 } from '@workspace/api-client-react';
-import { MapPin, Calendar, Video, ArrowRight, UserPlus, Zap, Check } from 'lucide-react';
+import { MapPin, Calendar, Video, ArrowRight, UserPlus, Zap, Check, UsersRound, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/lib/auth';
 
+// ── Invite-all confirmation modal ─────────────────────────────────────────────
+
+interface InviteAllConfirmProps {
+  open: boolean;
+  eventName: string;
+  count: number;
+  isPending: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}
+
+function InviteAllConfirm({ open, eventName, count, isPending, onConfirm, onCancel }: InviteAllConfirmProps) {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+      <div className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-bold text-foreground">Invite all {count} staff?</h2>
+          <button onClick={onCancel} className="p-1 text-muted-foreground hover:text-foreground rounded">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          This will create invitations for all {count} suggested staff member{count !== 1 ? 's' : ''} for <strong>{eventName}</strong>.
+          Already-invited people will be skipped automatically.
+        </p>
+        <div className="flex justify-end gap-3 pt-2">
+          <button
+            onClick={onCancel}
+            className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground border border-border rounded-md transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={isPending}
+            className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-md shadow-sm hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center gap-1.5"
+          >
+            <UsersRound className="h-4 w-4" />
+            {isPending ? 'Inviting…' : 'Invite all'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Main component ─────────────────────────────────────────────────────────────
+
 export default function SuggestionsHub() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { isLeader } = useAuth();
+
+  // Track which event card has the "Invite all" confirmation open.
+  const [inviteAllTarget, setInviteAllTarget] = useState<{
+    eventId: number;
+    eventName: string;
+    personIds: number[];
+  } | null>(null);
 
   const { data: meetupSuggestions, isLoading: loadingMeetups } = useGetMeetupSuggestions();
   const { data: virtualSuggestions, isLoading: loadingVirtual } = useGetVirtualSuggestions();
@@ -27,9 +84,25 @@ export default function SuggestionsHub() {
     mutation: {
       onSuccess: () => {
         toast({ title: 'Invitation sent successfully' });
-        // Optimistically update or refetch
         queryClient.invalidateQueries({ queryKey: getGetMeetupSuggestionsQueryKey() });
       }
+    }
+  });
+
+  const bulkCreateInvite = useBulkCreateInvitations({
+    mutation: {
+      onSuccess: (data) => {
+        queryClient.invalidateQueries({ queryKey: getGetMeetupSuggestionsQueryKey() });
+        toast({
+          title: `${data.created} invitation${data.created !== 1 ? 's' : ''} created`,
+          description: data.skipped > 0 ? `${data.skipped} already invited — skipped.` : undefined,
+        });
+        setInviteAllTarget(null);
+      },
+      onError: () => {
+        toast({ title: 'Error', description: 'Failed to send bulk invitations.' });
+        setInviteAllTarget(null);
+      },
     }
   });
 
@@ -43,6 +116,18 @@ export default function SuggestionsHub() {
     });
   };
 
+  const handleInviteAll = (eventId: number, eventName: string, personIds: number[]) => {
+    setInviteAllTarget({ eventId, eventName, personIds });
+  };
+
+  const confirmInviteAll = () => {
+    if (!inviteAllTarget) return;
+    bulkCreateInvite.mutate({
+      id: inviteAllTarget.eventId,
+      data: { personIds: inviteAllTarget.personIds, createCalendarEvent: false },
+    });
+  };
+
   const handleScheduleVirtual = async (personId: number, leaderId?: number) => {
     try {
       const meeting = await createMeeting.mutateAsync({
@@ -53,7 +138,6 @@ export default function SuggestionsHub() {
           notes: 'Suggested touchpoint from the hub',
         } as any,
       });
-      // Add the staff member as a participant so the touchpoint is associated
       await addParticipant.mutateAsync({ id: (meeting as any).id, data: { personId } });
       toast({ title: 'Check-in suggested', description: 'A virtual touchpoint has been queued.' });
       queryClient.invalidateQueries({ queryKey: getGetVirtualSuggestionsQueryKey() });
@@ -91,72 +175,87 @@ export default function SuggestionsHub() {
               {[1, 2].map(i => <div key={i} className="h-64 bg-card rounded-xl border border-border"></div>)}
             </div>
           ) : meetupSuggestions && meetupSuggestions.length > 0 ? (
-            meetupSuggestions.map((meetup, idx) => (
-              <div key={idx} className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
-                <div className="p-5 border-b border-border bg-muted/20">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <Link href={`/events/${meetup.event.id}`} className="text-xl font-bold text-foreground hover:text-primary transition-colors">
-                        {meetup.event.name}
-                      </Link>
-                      <div className="flex items-center gap-3 text-sm text-muted-foreground mt-2">
-                        <span className="flex items-center gap-1"><Calendar className="h-4 w-4" /> {format(new Date(meetup.event.startDate), 'MMM d')}</span>
-                        <span className="flex items-center gap-1"><MapPin className="h-4 w-4" /> {meetup.event.city}, {meetup.event.state}</span>
+            meetupSuggestions.map((meetup, idx) => {
+              const suggestionIds = meetup.suggestedPeople.map((sp) => sp.person.id);
+              return (
+                <div key={idx} className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
+                  <div className="p-5 border-b border-border bg-muted/20">
+                    <div className="flex justify-between items-start gap-3">
+                      <div className="min-w-0">
+                        <Link href={`/events/${meetup.event.id}`} className="text-xl font-bold text-foreground hover:text-primary transition-colors">
+                          {meetup.event.name}
+                        </Link>
+                        <div className="flex items-center gap-3 text-sm text-muted-foreground mt-2">
+                          <span className="flex items-center gap-1"><Calendar className="h-4 w-4" /> {format(new Date(meetup.event.startDate), 'MMM d')}</span>
+                          <span className="flex items-center gap-1"><MapPin className="h-4 w-4" /> {meetup.event.city}, {meetup.event.state}</span>
+                        </div>
                       </div>
+                      {/* Invite all button — only when there are suggestions and user is a leader */}
+                      {isLeader && suggestionIds.length > 0 && (
+                        <button
+                          onClick={() => handleInviteAll(meetup.event.id, meetup.event.name, suggestionIds)}
+                          disabled={createInvite.isPending || bulkCreateInvite.isPending}
+                          className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground text-xs font-medium rounded-md shadow-sm hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                          title={`Invite all ${suggestionIds.length} suggested staff`}
+                        >
+                          <UsersRound className="h-3.5 w-3.5" />
+                          Invite all ({suggestionIds.length})
+                        </button>
+                      )}
                     </div>
+                    
+                    {meetup.leaders.length > 0 && (
+                      <div className="mt-4 flex items-center gap-2 text-xs">
+                        <span className="text-muted-foreground font-medium">Attending Execs:</span>
+                        <div className="flex -space-x-2">
+                          {meetup.leaders.map(l => (
+                            <div key={l.id} className="h-6 w-6 rounded-full bg-primary text-primary-foreground border-2 border-card flex items-center justify-center font-bold text-[10px]" title={l.name}>
+                              {l.name.charAt(0)}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                   
-                  {meetup.leaders.length > 0 && (
-                    <div className="mt-4 flex items-center gap-2 text-xs">
-                      <span className="text-muted-foreground font-medium">Attending Execs:</span>
-                      <div className="flex -space-x-2">
-                        {meetup.leaders.map(l => (
-                          <div key={l.id} className="h-6 w-6 rounded-full bg-primary text-primary-foreground border-2 border-card flex items-center justify-center font-bold text-[10px]" title={l.name}>
-                            {l.name.charAt(0)}
+                  <div className="p-0">
+                    {meetup.suggestedPeople.length > 0 ? (
+                      <div className="divide-y divide-border">
+                        {meetup.suggestedPeople.map((sp, sIdx) => (
+                          <div key={sIdx} className="p-4 flex items-center justify-between hover:bg-muted/10">
+                            <div className="flex items-center gap-3">
+                              <div className="h-10 w-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold shrink-0">
+                                {sp.person.name.split(' ').map(n => n[0]).join('').substring(0, 2)}
+                              </div>
+                              <div>
+                                <Link href={`/people/${sp.person.id}`} className="font-semibold text-foreground hover:underline text-sm">
+                                  {sp.person.name}
+                                </Link>
+                                <div className="text-xs text-muted-foreground mt-0.5">{sp.person.title}</div>
+                                <div className="text-xs font-medium text-amber-600 mt-1 bg-amber-50 inline-block px-1.5 rounded">
+                                  {sp.reason}
+                                </div>
+                              </div>
+                            </div>
+                            {isLeader && (
+                              <button 
+                                onClick={() => handleInvite(meetup.event.id, sp.person.id)}
+                                disabled={createInvite.isPending}
+                                className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground text-xs font-medium rounded transition-colors"
+                              >
+                                <UserPlus className="h-3.5 w-3.5" /> Invite
+                              </button>
+                            )}
                           </div>
                         ))}
                       </div>
-                    </div>
-                  )}
+                    ) : (
+                      <div className="p-4 text-center text-sm text-muted-foreground">No local staff suggestions for this event.</div>
+                    )}
+                  </div>
                 </div>
-                
-                <div className="p-0">
-                  {meetup.suggestedPeople.length > 0 ? (
-                    <div className="divide-y divide-border">
-                      {meetup.suggestedPeople.map((sp, sIdx) => (
-                        <div key={sIdx} className="p-4 flex items-center justify-between hover:bg-muted/10">
-                          <div className="flex items-center gap-3">
-                            <div className="h-10 w-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold shrink-0">
-                              {sp.person.name.split(' ').map(n => n[0]).join('').substring(0, 2)}
-                            </div>
-                            <div>
-                              <Link href={`/people/${sp.person.id}`} className="font-semibold text-foreground hover:underline text-sm">
-                                {sp.person.name}
-                              </Link>
-                              <div className="text-xs text-muted-foreground mt-0.5">{sp.person.title}</div>
-                              <div className="text-xs font-medium text-amber-600 mt-1 bg-amber-50 inline-block px-1.5 rounded">
-                                {sp.reason}
-                              </div>
-                            </div>
-                          </div>
-                          {isLeader && (
-                            <button 
-                              onClick={() => handleInvite(meetup.event.id, sp.person.id)}
-                              disabled={createInvite.isPending}
-                              className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground text-xs font-medium rounded transition-colors"
-                            >
-                              <UserPlus className="h-3.5 w-3.5" /> Invite
-                            </button>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="p-4 text-center text-sm text-muted-foreground">No local staff suggestions for this event.</div>
-                  )}
-                </div>
-              </div>
-            ))
+              );
+            })
           ) : (
             <div className="bg-card border border-border p-8 rounded-xl text-center text-muted-foreground">
               No in-person meetup suggestions at this time.
@@ -250,6 +349,16 @@ export default function SuggestionsHub() {
         </div>
 
       </div>
+
+      {/* Invite-all confirmation modal */}
+      <InviteAllConfirm
+        open={!!inviteAllTarget}
+        eventName={inviteAllTarget?.eventName ?? ''}
+        count={inviteAllTarget?.personIds.length ?? 0}
+        isPending={bulkCreateInvite.isPending}
+        onConfirm={confirmInviteAll}
+        onCancel={() => setInviteAllTarget(null)}
+      />
     </div>
   );
 }

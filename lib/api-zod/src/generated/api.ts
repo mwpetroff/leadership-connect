@@ -519,6 +519,87 @@ export const CreateInvitationResponse = zod.object({
 
 
 /**
+ * @summary Invite multiple people to an event in a single transaction
+ */
+export const BulkCreateInvitationsParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+
+
+
+export const BulkCreateInvitationsBody = zod.object({
+  "personIds": zod.array(zod.number().int()).min(1),
+  "createCalendarEvent": zod.boolean().optional().describe('If true (default), create Outlook calendar events for each new invitation.')
+})
+
+export const BulkCreateInvitationsResponse = zod.object({
+  "created": zod.number().int().describe('Number of new invitations created.'),
+  "skipped": zod.number().int().describe('Number of people already invited (skipped, not re-invited).'),
+  "invitations": zod.array(zod.object({
+  "id": zod.number().int(),
+  "eventId": zod.number().int(),
+  "personId": zod.number().int(),
+  "status": zod.enum(['invited', 'attended', 'no_show', 'declined']),
+  "notes": zod.string().nullish(),
+  "graphEventId": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date().optional(),
+  "person": zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "email": zod.string(),
+  "title": zod.string().nullish(),
+  "department": zod.string().nullish(),
+  "role": zod.enum(['executive', 'secondary_leader', 'staff']),
+  "homeCity": zod.string(),
+  "homeState": zod.string(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date().optional()
+}).optional(),
+  "event": zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "location": zod.string(),
+  "city": zod.string(),
+  "state": zod.string(),
+  "startDate": zod.coerce.date(),
+  "endDate": zod.coerce.date().nullish(),
+  "eventType": zod.enum(['summit', 'conference', 'marketing', 'leadership', 'regional', 'other']),
+  "leaderCount": zod.number().int().optional(),
+  "inviteeCount": zod.number().int().optional(),
+  "attendeeCount": zod.number().int().optional(),
+  "createdAt": zod.coerce.date()
+}).optional()
+}))
+})
+
+
+/**
+ * @summary Update attendance status for multiple invitations in one call
+ */
+export const BulkUpdateInvitationsParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+
+
+
+export const BulkUpdateInvitationsBody = zod.object({
+  "updates": zod.array(zod.object({
+  "id": zod.number().int(),
+  "status": zod.enum(['invited', 'attended', 'no_show', 'declined'])
+})).min(1)
+})
+
+export const BulkUpdateInvitationsResponse = zod.object({
+  "updated": zod.number().int().describe('Number of invitation statuses updated.')
+})
+
+
+/**
  * @summary Update attendance status for an invitation
  */
 export const UpdateInvitationParams = zod.object({

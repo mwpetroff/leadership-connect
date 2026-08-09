@@ -8,6 +8,12 @@
 
 export * from './activityItem';
 export * from './activityItemType';
+export * from './bulkInvitationInput';
+export * from './bulkInvitationResult';
+export * from './bulkInvitationStatusInput';
+export * from './bulkInvitationStatusInputUpdatesItem';
+export * from './bulkInvitationStatusInputUpdatesItemStatus';
+export * from './bulkInvitationStatusResult';
 export * from './dashboardSummary';
 export * from './event';
 export * from './eventEventType';

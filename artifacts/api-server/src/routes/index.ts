@@ -31,8 +31,12 @@ const LEADER_WRITE_PATTERNS: Array<{ method: string; pattern: RegExp }> = [
   { method: "POST",  pattern: /^\/virtual-meetings$/ },
   { method: "PATCH", pattern: /^\/virtual-meetings\/[^/]+$/ },
   { method: "POST",  pattern: /^\/virtual-meetings\/[^/]+\/participants$/ },
+  // Single invitation create/update
   { method: "POST",  pattern: /^\/events\/[^/]+\/invitations$/ },
   { method: "PATCH", pattern: /^\/invitations\/[^/]+$/ },
+  // Bulk invitation operations (leaders can bulk-invite and mark attendance)
+  { method: "POST",  pattern: /^\/events\/[^/]+\/invitations\/bulk$/ },
+  { method: "PATCH", pattern: /^\/events\/[^/]+\/invitations\/bulk$/ },
 ];
 
 router.use((req, res, next) => {

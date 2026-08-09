@@ -20,6 +20,10 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  BulkInvitationInput,
+  BulkInvitationResult,
+  BulkInvitationStatusInput,
+  BulkInvitationStatusResult,
   DashboardSummary,
   Event,
   EventInput,
@@ -1346,6 +1350,150 @@ export const useCreateInvitation = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getCreateInvitationMutationOptions(options));
+    }
+
+export const getBulkCreateInvitationsUrl = (id: number,) => {
+
+
+
+
+  return `/api/events/${id}/invitations/bulk`
+}
+
+/**
+ * @summary Invite multiple people to an event in a single transaction
+ */
+export const bulkCreateInvitations = async (id: number,
+    bulkInvitationInput: BulkInvitationInput, options?: Parameters<typeof customFetch>[1]): Promise<BulkInvitationResult> => {
+
+  return customFetch<BulkInvitationResult>(getBulkCreateInvitationsUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(bulkInvitationInput)
+  }
+);}
+
+
+
+
+
+export const getBulkCreateInvitationsMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof bulkCreateInvitations>>, TError,{id: number;data: BodyType<BulkInvitationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof bulkCreateInvitations>>, TError,{id: number;data: BodyType<BulkInvitationInput>}, TContext> => {
+
+const mutationKey = ['bulkCreateInvitations'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof bulkCreateInvitations>>, {id: number;data: BodyType<BulkInvitationInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  bulkCreateInvitations(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type BulkCreateInvitationsMutationResult = NonNullable<Awaited<ReturnType<typeof bulkCreateInvitations>>>
+    export type BulkCreateInvitationsMutationBody = BodyType<BulkInvitationInput>
+    export type BulkCreateInvitationsMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Invite multiple people to an event in a single transaction
+ */
+export const useBulkCreateInvitations = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof bulkCreateInvitations>>, TError,{id: number;data: BodyType<BulkInvitationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof bulkCreateInvitations>>,
+        TError,
+        {id: number;data: BodyType<BulkInvitationInput>},
+        TContext
+      > => {
+      return useMutation(getBulkCreateInvitationsMutationOptions(options));
+    }
+
+export const getBulkUpdateInvitationsUrl = (id: number,) => {
+
+
+
+
+  return `/api/events/${id}/invitations/bulk`
+}
+
+/**
+ * @summary Update attendance status for multiple invitations in one call
+ */
+export const bulkUpdateInvitations = async (id: number,
+    bulkInvitationStatusInput: BulkInvitationStatusInput, options?: Parameters<typeof customFetch>[1]): Promise<BulkInvitationStatusResult> => {
+
+  return customFetch<BulkInvitationStatusResult>(getBulkUpdateInvitationsUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(bulkInvitationStatusInput)
+  }
+);}
+
+
+
+
+
+export const getBulkUpdateInvitationsMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof bulkUpdateInvitations>>, TError,{id: number;data: BodyType<BulkInvitationStatusInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof bulkUpdateInvitations>>, TError,{id: number;data: BodyType<BulkInvitationStatusInput>}, TContext> => {
+
+const mutationKey = ['bulkUpdateInvitations'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof bulkUpdateInvitations>>, {id: number;data: BodyType<BulkInvitationStatusInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  bulkUpdateInvitations(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type BulkUpdateInvitationsMutationResult = NonNullable<Awaited<ReturnType<typeof bulkUpdateInvitations>>>
+    export type BulkUpdateInvitationsMutationBody = BodyType<BulkInvitationStatusInput>
+    export type BulkUpdateInvitationsMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Update attendance status for multiple invitations in one call
+ */
+export const useBulkUpdateInvitations = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof bulkUpdateInvitations>>, TError,{id: number;data: BodyType<BulkInvitationStatusInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof bulkUpdateInvitations>>,
+        TError,
+        {id: number;data: BodyType<BulkInvitationStatusInput>},
+        TContext
+      > => {
+      return useMutation(getBulkUpdateInvitationsMutationOptions(options));
     }
 
 export const getUpdateInvitationUrl = (id: number,) => {
