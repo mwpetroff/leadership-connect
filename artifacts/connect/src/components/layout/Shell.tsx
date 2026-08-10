@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Link, useLocation } from 'wouter';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { Link, useLocation, useRoute } from 'wouter';
 import { useQuery } from '@tanstack/react-query';
 import {
   LayoutDashboard,
@@ -16,6 +16,9 @@ import {
   Menu,
   X,
   GitBranch,
+  User,
+  MapPin,
+  Clock,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
@@ -118,6 +121,284 @@ function UserCard({ initials, avatarCls, displayName, displayRole }: {
   );
 }
 
+// ── Search types ────────────────────────────────────────────────────────────────
+
+interface SearchPerson {
+  id: number;
+  name: string;
+  email: string;
+  title: string | null;
+  department: string | null;
+  role: string;
+}
+
+interface SearchEvent {
+  id: number;
+  name: string;
+  location: string;
+  startDate: string;
+  eventType: string;
+}
+
+interface SearchMeeting {
+  id: number;
+  title: string;
+  status: string;
+  scheduledDate: string | null;
+  notes: string | null;
+}
+
+interface SearchResults {
+  people: SearchPerson[];
+  events: SearchEvent[];
+  virtualMeetings: SearchMeeting[];
+}
+
+type FlatResult =
+  | { kind: 'person';  item: SearchPerson }
+  | { kind: 'event';   item: SearchEvent }
+  | { kind: 'meeting'; item: SearchMeeting };
+
+function flattenResults(results: SearchResults): FlatResult[] {
+  return [
+    ...results.people.map(item => ({ kind: 'person' as const, item })),
+    ...results.events.map(item => ({ kind: 'event' as const, item })),
+    ...results.virtualMeetings.map(item => ({ kind: 'meeting' as const, item })),
+  ];
+}
+
+function resultHref(r: FlatResult): string {
+  if (r.kind === 'person')  return `/people/${r.item.id}`;
+  if (r.kind === 'event')   return `/events/${r.item.id}`;
+  return `/virtual-meetings/${r.item.id}`;
+}
+
+function formatDate(d: string | null | undefined): string {
+  if (!d) return '';
+  try {
+    return new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  } catch { return d; }
+}
+
+function capitalise(s: string) {
+  return s.charAt(0).toUpperCase() + s.slice(1).replace(/_/g, ' ');
+}
+
+// ── Global search bar ───────────────────────────────────────────────────────────
+
+function GlobalSearch() {
+  const [query, setQuery] = useState('');
+  const [open, setOpen] = useState(false);
+  const [activeIdx, setActiveIdx] = useState(-1);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [, navigate] = useLocation();
+
+  // Debounced query for the API call
+  const [debouncedQ, setDebouncedQ] = useState('');
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQ(query), 150);
+    return () => clearTimeout(t);
+  }, [query]);
+
+  const { data: results, isFetching } = useQuery<SearchResults>({
+    queryKey: ['search', debouncedQ],
+    queryFn: async () => {
+      if (!debouncedQ.trim()) return { people: [], events: [], virtualMeetings: [] };
+      const res = await fetch(
+        `${import.meta.env.BASE_URL}api/search?q=${encodeURIComponent(debouncedQ)}`,
+        { credentials: 'include' },
+      );
+      if (!res.ok) throw new Error('Search failed');
+      return res.json();
+    },
+    enabled: debouncedQ.trim().length > 0,
+    staleTime: 10_000,
+  });
+
+  const flat = results ? flattenResults(results) : [];
+  const hasResults = flat.length > 0;
+  const totalCount =
+    (results?.people.length ?? 0) +
+    (results?.events.length ?? 0) +
+    (results?.virtualMeetings.length ?? 0);
+  const showDropdown = open && query.trim().length > 0;
+
+  // Reset active index when results change
+  useEffect(() => { setActiveIdx(-1); }, [debouncedQ]);
+
+  // Close on outside click
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const selectResult = useCallback((r: FlatResult) => {
+    navigate(resultHref(r));
+    setQuery('');
+    setOpen(false);
+    setActiveIdx(-1);
+    inputRef.current?.blur();
+  }, [navigate]);
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (!showDropdown) return;
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setActiveIdx(i => (i < flat.length - 1 ? i + 1 : 0));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setActiveIdx(i => (i > 0 ? i - 1 : flat.length - 1));
+    } else if (e.key === 'Enter') {
+      if (activeIdx >= 0 && flat[activeIdx]) {
+        e.preventDefault();
+        selectResult(flat[activeIdx]);
+      }
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      setOpen(false);
+      setActiveIdx(-1);
+      inputRef.current?.blur();
+    }
+  }
+
+  // Group results for display
+  const groups: { label: string; kind: FlatResult['kind']; items: FlatResult[] }[] = [];
+  if (results?.people.length)
+    groups.push({ label: 'People', kind: 'person', items: results.people.map(item => ({ kind: 'person' as const, item })) });
+  if (results?.events.length)
+    groups.push({ label: 'Events', kind: 'event', items: results.events.map(item => ({ kind: 'event' as const, item })) });
+  if (results?.virtualMeetings.length)
+    groups.push({ label: 'Virtual Meetings', kind: 'meeting', items: results.virtualMeetings.map(item => ({ kind: 'meeting' as const, item })) });
+
+  // Build a flat index map for keyboard nav
+  let flatIdx = 0;
+  const groupsWithIdx = groups.map(g => ({
+    ...g,
+    items: g.items.map(r => ({ r, idx: flatIdx++ })),
+  }));
+
+  return (
+    <div ref={containerRef} className="relative w-full">
+      <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
+      <input
+        ref={inputRef}
+        type="search"
+        placeholder="Search people, events, meetings…"
+        className="w-full bg-muted/60 border border-transparent rounded-xl pl-9 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all placeholder:text-muted-foreground"
+        value={query}
+        onChange={e => { setQuery(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        onKeyDown={handleKeyDown}
+        autoComplete="off"
+        aria-label="Global search"
+        aria-expanded={showDropdown}
+        aria-autocomplete="list"
+        role="combobox"
+      />
+
+      {showDropdown && (
+        <div
+          className="absolute top-full left-0 right-0 mt-1.5 bg-card border border-border rounded-xl shadow-lg z-50 overflow-hidden"
+          role="listbox"
+        >
+          {isFetching && !hasResults && (
+            <div className="px-4 py-3 text-sm text-muted-foreground">Searching…</div>
+          )}
+
+          {!isFetching && debouncedQ && !hasResults && (
+            <div className="px-4 py-3 text-sm text-muted-foreground">
+              No matches for <span className="font-medium text-foreground">"{debouncedQ}"</span>
+            </div>
+          )}
+
+          {groupsWithIdx.map(group => (
+            <div key={group.label}>
+              <div className="px-3 pt-2.5 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                {group.label}
+              </div>
+              {group.items.map(({ r, idx }) => (
+                <button
+                  key={`${r.kind}-${r.item.id}`}
+                  role="option"
+                  aria-selected={activeIdx === idx}
+                  onMouseEnter={() => setActiveIdx(idx)}
+                  onMouseDown={e => { e.preventDefault(); selectResult(r); }}
+                  className={cn(
+                    'w-full text-left flex items-start gap-3 px-3 py-2 transition-colors',
+                    activeIdx === idx ? 'bg-primary/10' : 'hover:bg-muted/60',
+                  )}
+                >
+                  <ResultIcon kind={r.kind} />
+                  <ResultBody r={r} />
+                </button>
+              ))}
+            </div>
+          ))}
+
+          {hasResults && (
+            <div className="px-3 py-2 border-t border-border text-[11px] text-muted-foreground">
+              {totalCount} result{totalCount !== 1 ? 's' : ''} — ↑↓ to navigate · Enter to open · Esc to close
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ResultIcon({ kind }: { kind: FlatResult['kind'] }) {
+  if (kind === 'person')  return <User className="h-4 w-4 mt-0.5 shrink-0 text-violet-500" />;
+  if (kind === 'event')   return <CalendarDays className="h-4 w-4 mt-0.5 shrink-0 text-blue-500" />;
+  return <Video className="h-4 w-4 mt-0.5 shrink-0 text-teal-500" />;
+}
+
+function ResultBody({ r }: { r: FlatResult }) {
+  if (r.kind === 'person') {
+    const p = r.item as SearchPerson;
+    return (
+      <div className="min-w-0">
+        <div className="text-sm font-medium text-foreground truncate">{p.name}</div>
+        <div className="text-xs text-muted-foreground truncate">
+          {[p.title, p.department].filter(Boolean).join(' · ') || p.email}
+        </div>
+      </div>
+    );
+  }
+  if (r.kind === 'event') {
+    const e = r.item as SearchEvent;
+    return (
+      <div className="min-w-0">
+        <div className="text-sm font-medium text-foreground truncate">{e.name}</div>
+        <div className="text-xs text-muted-foreground truncate flex items-center gap-1">
+          <MapPin className="h-3 w-3 shrink-0" />
+          {e.location}
+          {e.startDate && <> · {formatDate(e.startDate)}</>}
+        </div>
+      </div>
+    );
+  }
+  const m = r.item as SearchMeeting;
+  return (
+    <div className="min-w-0">
+      <div className="text-sm font-medium text-foreground truncate">{m.title}</div>
+      <div className="text-xs text-muted-foreground truncate flex items-center gap-1">
+        <Clock className="h-3 w-3 shrink-0" />
+        {capitalise(m.status)}
+        {m.scheduledDate && <> · {formatDate(m.scheduledDate)}</>}
+      </div>
+    </div>
+  );
+}
+
+// ── Shell ───────────────────────────────────────────────────────────────────────
+
 export function Shell({ children }: ShellProps) {
   const [location] = useLocation();
   const { user, isAdmin } = useAuth();
@@ -215,14 +496,7 @@ export function Shell({ children }: ShellProps) {
             <BrandLogo orgName={orgName} />
           </div>
           <div className="hidden md:flex flex-1 max-w-md">
-            <div className="relative w-full">
-              <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-              <input
-                type="search"
-                placeholder="Search people, events, meetings…"
-                className="w-full bg-muted/60 border border-transparent rounded-xl pl-9 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all placeholder:text-muted-foreground"
-              />
-            </div>
+            <GlobalSearch />
           </div>
           <div className="flex items-center gap-2 ml-auto">
             <button className="relative p-2 text-muted-foreground hover:text-foreground transition-colors rounded-xl hover:bg-muted">

@@ -50,6 +50,13 @@
       "when": 1786325125792,
       "tag": "0006_eager_vertigo",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1786330000000,
+      "tag": "0007_search_trigram_indexes",
+      "breakpoints": true
     }
   ]
 }
