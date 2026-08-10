@@ -1,5 +1,6 @@
 import app from "./app";
 import { logger } from "./lib/logger";
+import { startGeocodeBackfill } from "./lib/geocodeBackfill";
 
 const rawPort = process.env["PORT"];
 
@@ -22,4 +23,6 @@ app.listen(port, (err) => {
   }
 
   logger.info({ port }, "Server listening");
+  // Kick off background geocoding for any existing records without coords
+  startGeocodeBackfill();
 });

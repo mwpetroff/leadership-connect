@@ -11,6 +11,7 @@ import {
   GetPersonEngagementParams,
 } from "@workspace/api-zod";
 import { logAudit } from "../lib/audit";
+import { geocodeCity } from "../lib/geocoding";
 
 const router: IRouter = Router();
 
@@ -56,7 +57,11 @@ router.post("/people", async (req, res): Promise<void> => {
     return;
   }
 
-  const [person] = await db.insert(peopleTable).values(parsed.data).returning();
+  const coords = await geocodeCity(parsed.data.homeCity, parsed.data.homeState);
+  const [person] = await db
+    .insert(peopleTable)
+    .values({ ...parsed.data, lat: coords?.lat ?? null, lng: coords?.lng ?? null, geocodedAt: new Date() })
+    .returning();
   logAudit(req, "create", "person", person.id, null, person);
   res.status(201).json(person);
 });
@@ -92,9 +97,21 @@ router.patch("/people/:id", async (req, res): Promise<void> => {
 
   const [before] = await db.select().from(peopleTable).where(eq(peopleTable.id, params.data.id));
 
+  // Re-geocode only when city or state actually changes
+  const cityChanged = parsed.data.homeCity !== undefined && parsed.data.homeCity !== before?.homeCity;
+  const stateChanged = parsed.data.homeState !== undefined && parsed.data.homeState !== before?.homeState;
+
+  let coordUpdate: { lat?: number | null; lng?: number | null; geocodedAt?: Date } = {};
+  if (cityChanged || stateChanged) {
+    const city = parsed.data.homeCity ?? before?.homeCity;
+    const state = parsed.data.homeState ?? before?.homeState;
+    const coords = await geocodeCity(city, state);
+    coordUpdate = { lat: coords?.lat ?? null, lng: coords?.lng ?? null, geocodedAt: new Date() };
+  }
+
   const [person] = await db
     .update(peopleTable)
-    .set(parsed.data)
+    .set({ ...parsed.data, ...coordUpdate })
     .where(eq(peopleTable.id, params.data.id))
     .returning();
 

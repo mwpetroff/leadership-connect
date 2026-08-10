@@ -7,6 +7,7 @@ import {
   peopleTable,
   invitationsTable,
 } from "@workspace/db";
+import { geocodeCity } from "../lib/geocoding";
 import {
   ListEventsQueryParams,
   CreateEventBody,
@@ -78,12 +79,16 @@ router.post("/events", async (req, res): Promise<void> => {
     return;
   }
 
+  const coords = await geocodeCity(parsed.data.city, parsed.data.state);
   const [event] = await db
     .insert(eventsTable)
     .values({
       ...parsed.data,
       startDate: toDateStr(parsed.data.startDate),
       endDate: parsed.data.endDate ? toDateStr(parsed.data.endDate) : undefined,
+      lat: coords?.lat ?? null,
+      lng: coords?.lng ?? null,
+      geocodedAt: new Date(),
     })
     .returning();
   logAudit(req, "create", "event", event.id, null, event);
@@ -122,11 +127,24 @@ router.patch("/events/:id", async (req, res): Promise<void> => {
   const [before] = await db.select().from(eventsTable).where(eq(eventsTable.id, params.data.id));
 
   const { startDate, endDate, ...restData } = parsed.data;
-  const setData = {
+  const setData: Record<string, unknown> = {
     ...restData,
     ...(startDate !== undefined ? { startDate: toDateStr(startDate) } : {}),
     ...(endDate !== undefined ? { endDate: endDate ? toDateStr(endDate) : undefined } : {}),
   };
+
+  // Re-geocode only when city or state actually changes
+  const cityChanged = parsed.data.city !== undefined && parsed.data.city !== before?.city;
+  const stateChanged = parsed.data.state !== undefined && parsed.data.state !== before?.state;
+
+  if (cityChanged || stateChanged) {
+    const city = (parsed.data.city ?? before?.city) as string | undefined;
+    const state = (parsed.data.state ?? before?.state) as string | undefined;
+    const coords = await geocodeCity(city, state);
+    setData.lat = coords?.lat ?? null;
+    setData.lng = coords?.lng ?? null;
+    setData.geocodedAt = new Date();
+  }
 
   const [event] = await db
     .update(eventsTable)

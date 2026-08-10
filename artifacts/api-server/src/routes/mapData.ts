@@ -10,6 +10,9 @@ const router: IRouter = Router();
  * Returns all people (with home locations), all events (with venue locations),
  * and the invitation links between them — enough for the Engagement Map to
  * plot markers and draw leader↔event connection lines in a single request.
+ *
+ * lat/lng are included when already geocoded server-side so the client
+ * can skip Nominatim for known records.
  */
 router.get("/map-data", async (_req, res): Promise<void> => {
   const [people, events, invitations] = await Promise.all([
@@ -20,6 +23,8 @@ router.get("/map-data", async (_req, res): Promise<void> => {
       title: peopleTable.title,
       homeCity: peopleTable.homeCity,
       homeState: peopleTable.homeState,
+      lat: peopleTable.lat,
+      lng: peopleTable.lng,
     }).from(peopleTable),
 
     db.select({
@@ -28,6 +33,8 @@ router.get("/map-data", async (_req, res): Promise<void> => {
       location: eventsTable.location,
       city: eventsTable.city,
       state: eventsTable.state,
+      lat: eventsTable.lat,
+      lng: eventsTable.lng,
       startDate: eventsTable.startDate,
       endDate: eventsTable.endDate,
       eventType: eventsTable.eventType,

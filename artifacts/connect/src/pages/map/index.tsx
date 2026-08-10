@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { MapPin, Users, CalendarDays, X, Loader2, Info } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { geocode, locationKey } from '@/lib/geocoding';
 import { format } from 'date-fns';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -14,6 +13,8 @@ interface MapPerson {
   title: string | null;
   homeCity: string | null;
   homeState: string | null;
+  lat: number | null;
+  lng: number | null;
 }
 
 interface MapInvitee {
@@ -30,6 +31,8 @@ interface MapEvent {
   location: string;
   city: string | null;
   state: string | null;
+  lat: number | null;
+  lng: number | null;
   startDate: string;
   endDate: string;
   eventType: string;
@@ -358,11 +361,7 @@ function EventPanel({ event, people }: { event: MapEvent; people: MapPerson[] })
 
 export default function EngagementMap() {
   const [selection, setSelection] = useState<Selection | null>(null);
-  const [geocoded, setGeocoded] = useState<Map<string, { lat: number; lng: number } | null>>(new Map());
-  const [geocodingProgress, setGeocodingProgress] = useState({ done: 0, total: 0 });
   const [filter, setFilter] = useState({ showExecs: true, showLeaders: true, showStaff: true, showEvents: true });
-
-  const geocoding = geocodingProgress.done < geocodingProgress.total;
 
   const { data, isLoading } = useQuery<MapData>({
     queryKey: ['map-data'],
@@ -372,34 +371,6 @@ export default function EngagementMap() {
       return res.json();
     },
   });
-
-  // Geocode unique locations progressively — update map state after each city
-  // resolves so markers appear one by one rather than all at once after a long wait.
-  useEffect(() => {
-    if (!data) return;
-
-    const allLocs = [
-      ...data.people.map(p => ({ city: p.homeCity, state: p.homeState })),
-      ...data.events.map(e => ({ city: e.city, state: e.state })),
-    ];
-
-    // Deduplicate by key
-    const unique = new Map<string, { city: string | null; state: string | null }>();
-    for (const loc of allLocs) {
-      const key = locationKey(loc.city, loc.state);
-      if (key) unique.set(key, loc);
-    }
-
-    const entries = Array.from(unique.entries());
-    setGeocodingProgress({ done: 0, total: entries.length });
-
-    entries.forEach(([key, loc]) => {
-      geocode(loc.city, loc.state).then(result => {
-        setGeocoded(prev => new Map([...prev, [key, result]]));
-        setGeocodingProgress(p => ({ ...p, done: p.done + 1 }));
-      });
-    });
-  }, [data]);
 
   if (isLoading) {
     return (
@@ -414,19 +385,17 @@ export default function EngagementMap() {
 
   if (!data) return null;
 
-  // Build plotted items (only those with coordinates)
+  // Only plot records that have server-stored coordinates.
+  // Records without coords were either not found by geocoding or haven't been
+  // processed yet — the server backfill handles those asynchronously.
   const plottedPeople: PlottedPerson[] = data.people.flatMap(p => {
-    const key = locationKey(p.homeCity, p.homeState);
-    const latlng = geocoded.get(key);
-    if (!latlng) return [];
-    return [{ ...p, latlng }];
+    if (p.lat === null || p.lat === undefined || p.lng === null || p.lng === undefined) return [];
+    return [{ ...p, latlng: { lat: p.lat, lng: p.lng } }];
   });
 
   const plottedEvents: PlottedEvent[] = data.events.flatMap(e => {
-    const key = locationKey(e.city, e.state);
-    const latlng = geocoded.get(key);
-    if (!latlng) return [];
-    return [{ ...e, latlng }];
+    if (e.lat === null || e.lat === undefined || e.lng === null || e.lng === undefined) return [];
+    return [{ ...e, latlng: { lat: e.lat, lng: e.lng } }];
   });
 
   const selectedPerson = selection?.type === 'person' ? data.people.find(p => p.id === selection.id) : null;
@@ -444,17 +413,11 @@ export default function EngagementMap() {
           <h1 className="text-3xl font-bold tracking-tight text-foreground">Engagement Map</h1>
           <p className="text-muted-foreground mt-1">Visualize where your team is and where interactions will happen.</p>
         </div>
-        {geocoding && (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/60 px-3 py-1.5 rounded-lg">
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            Geocoding locations…
-          </div>
-        )}
       </div>
 
-      <div className="flex flex-col md:flex-row gap-4 md:min-h-[500px]" style={{ '--map-h': 'calc(100vh - 220px)' } as React.CSSProperties}>
+      <div className="flex gap-4" style={{ height: 'calc(100vh - 220px)', minHeight: 500 }}>
         {/* Left panel — filters + detail */}
-        <div className="w-full md:w-72 shrink-0 flex flex-col gap-3 md:h-[var(--map-h)] md:overflow-y-auto">
+        <div className="w-72 shrink-0 flex flex-col gap-3 overflow-y-auto">
           {/* Stats */}
           <div className="bg-card border border-border rounded-xl p-4 space-y-3">
             <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Overview</div>
@@ -471,7 +434,7 @@ export default function EngagementMap() {
             {plottedCount < totalPeople && (
               <div className="flex items-start gap-2 text-xs text-muted-foreground bg-amber-50 border border-amber-100 rounded-lg p-2">
                 <Info className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
-                {totalPeople - plottedCount} people have no home location set.
+                {totalPeople - plottedCount} {totalPeople - plottedCount === 1 ? 'person has' : 'people have'} no mapped location.
               </div>
             )}
           </div>
@@ -536,12 +499,12 @@ export default function EngagementMap() {
         </div>
 
         {/* Map */}
-        <div className="flex-1 bg-card border border-border rounded-xl overflow-hidden shadow-sm h-[60vw] min-h-[300px] md:h-[var(--map-h)]">
-          {plottedPeople.length === 0 && plottedEvents.length === 0 && !geocoding ? (
+        <div className="flex-1 bg-card border border-border rounded-xl overflow-hidden shadow-sm">
+          {plottedPeople.length === 0 && plottedEvents.length === 0 ? (
             <div className="flex items-center justify-center h-full">
               <div className="text-center space-y-2">
                 <MapPin className="h-10 w-10 text-muted-foreground/40 mx-auto" />
-                <p className="text-muted-foreground">No locations could be geocoded yet.</p>
+                <p className="text-muted-foreground">No locations could be mapped yet.</p>
                 <p className="text-sm text-muted-foreground">Make sure people have home cities set in their profiles.</p>
               </div>
             </div>

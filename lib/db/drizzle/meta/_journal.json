@@ -22,6 +22,20 @@
       "when": 1786317332394,
       "tag": "0002_skinny_doctor_faustus",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1786322340212,
+      "tag": "0003_curious_titania",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1786322876360,
+      "tag": "0004_acoustic_mandroid",
+      "breakpoints": true
     }
   ]
 }

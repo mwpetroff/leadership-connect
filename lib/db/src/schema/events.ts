@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, date, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, date, pgEnum, doublePrecision, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -18,6 +18,9 @@ export const eventsTable = pgTable("events", {
   location: text("location").notNull(),
   city: text("city").notNull(),
   state: text("state").notNull(),
+  lat: doublePrecision("lat"),
+  lng: doublePrecision("lng"),
+  geocodedAt: timestamp("geocoded_at", { withTimezone: true }),
   startDate: date("start_date", { mode: "string" }).notNull(),
   endDate: date("end_date", { mode: "string" }),
   eventType: eventTypeEnum("event_type").notNull().default("other"),
