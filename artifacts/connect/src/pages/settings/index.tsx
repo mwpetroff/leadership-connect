@@ -24,7 +24,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Settings, Shield, ChevronDown, ChevronRight, AlertCircle } from 'lucide-react';
+import { Settings, Shield, ChevronDown, ChevronRight, AlertCircle, Building2, Pencil, Trash2, Plus, X, Check } from 'lucide-react';
 import { formatDistanceToNow, parseISO } from 'date-fns';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -55,6 +55,15 @@ interface AuditPage {
   totalPages: number;
 }
 
+interface Office {
+  id: number;
+  name: string;
+  city: string;
+  state: string;
+  lat: number | null;
+  lng: number | null;
+}
+
 // ── API helpers ───────────────────────────────────────────────────────────────
 
 const BASE = import.meta.env.BASE_URL;
@@ -82,6 +91,42 @@ async function fetchAuditLog(page: number, resourceType?: string): Promise<Audit
   const res = await fetch(`${BASE}api/audit-log?${params}`, { credentials: 'include' });
   if (!res.ok) throw new Error('Failed to load audit log');
   return res.json();
+}
+
+async function fetchOffices(): Promise<Office[]> {
+  const res = await fetch(`${BASE}api/offices`, { credentials: 'include' });
+  if (!res.ok) throw new Error('Failed to load offices');
+  return res.json();
+}
+
+async function createOffice(data: Omit<Office, 'id'>): Promise<Office> {
+  const res = await fetch(`${BASE}api/offices`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error('Failed to create office');
+  return res.json();
+}
+
+async function updateOffice(id: number, data: Partial<Omit<Office, 'id'>>): Promise<Office> {
+  const res = await fetch(`${BASE}api/offices/${id}`, {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error('Failed to update office');
+  return res.json();
+}
+
+async function deleteOffice(id: number): Promise<void> {
+  const res = await fetch(`${BASE}api/offices/${id}`, {
+    method: 'DELETE',
+    credentials: 'include',
+  });
+  if (!res.ok) throw new Error('Failed to delete office');
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -312,9 +357,351 @@ function NotificationsSection() {
   );
 }
 
+// ── Office management ─────────────────────────────────────────────────────────
+
+interface OfficeFormState {
+  name: string;
+  city: string;
+  state: string;
+  lat: string;
+  lng: string;
+}
+
+const EMPTY_FORM: OfficeFormState = { name: '', city: '', state: '', lat: '', lng: '' };
+
+function officeToForm(o: Office): OfficeFormState {
+  return {
+    name: o.name,
+    city: o.city,
+    state: o.state,
+    lat: o.lat != null ? String(o.lat) : '',
+    lng: o.lng != null ? String(o.lng) : '',
+  };
+}
+
+function formToPayload(f: OfficeFormState) {
+  return {
+    name: f.name.trim(),
+    city: f.city.trim(),
+    state: f.state.trim(),
+    lat: f.lat.trim() !== '' ? parseFloat(f.lat) : null,
+    lng: f.lng.trim() !== '' ? parseFloat(f.lng) : null,
+  };
+}
+
+function OfficeRow({
+  office,
+  onSaved,
+  onDeleted,
+}: {
+  office: Office;
+  onSaved: () => void;
+  onDeleted: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState<OfficeFormState>(officeToForm(office));
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const update = useMutation({
+    mutationFn: () => updateOffice(office.id, formToPayload(form)),
+    onSuccess: () => { setEditing(false); onSaved(); toast({ title: 'Office updated' }); },
+    onError: () => toast({ title: 'Failed to update office' }),
+  });
+
+  const remove = useMutation({
+    mutationFn: () => deleteOffice(office.id),
+    onSuccess: () => { onDeleted(); toast({ title: 'Office removed' }); },
+    onError: () => toast({ title: 'Failed to remove office' }),
+  });
+
+  if (editing) {
+    return (
+      <TableRow>
+        <TableCell>
+          <Input
+            value={form.name}
+            onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+            placeholder="Name"
+            className="h-8 text-sm"
+          />
+        </TableCell>
+        <TableCell>
+          <Input
+            value={form.city}
+            onChange={e => setForm(f => ({ ...f, city: e.target.value }))}
+            placeholder="City"
+            className="h-8 text-sm"
+          />
+        </TableCell>
+        <TableCell>
+          <Input
+            value={form.state}
+            onChange={e => setForm(f => ({ ...f, state: e.target.value }))}
+            placeholder="State"
+            className="h-8 text-sm"
+          />
+        </TableCell>
+        <TableCell>
+          <div className="flex gap-1">
+            <Input
+              value={form.lat}
+              onChange={e => setForm(f => ({ ...f, lat: e.target.value }))}
+              placeholder="Lat"
+              className="h-8 text-sm w-24"
+              type="number"
+              step="any"
+            />
+            <Input
+              value={form.lng}
+              onChange={e => setForm(f => ({ ...f, lng: e.target.value }))}
+              placeholder="Lng"
+              className="h-8 text-sm w-24"
+              type="number"
+              step="any"
+            />
+          </div>
+        </TableCell>
+        <TableCell>
+          <div className="flex gap-1">
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8 w-8 p-0 text-green-600"
+              disabled={update.isPending || !form.name.trim() || !form.city.trim() || !form.state.trim()}
+              onClick={() => update.mutate()}
+            >
+              <Check className="h-4 w-4" />
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8 w-8 p-0 text-muted-foreground"
+              onClick={() => { setEditing(false); setForm(officeToForm(office)); }}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        </TableCell>
+      </TableRow>
+    );
+  }
+
+  return (
+    <TableRow>
+      <TableCell className="font-medium text-sm">{office.name}</TableCell>
+      <TableCell className="text-sm">{office.city}</TableCell>
+      <TableCell className="text-sm">{office.state}</TableCell>
+      <TableCell className="text-xs text-muted-foreground font-mono">
+        {office.lat != null && office.lng != null
+          ? `${office.lat.toFixed(4)}, ${office.lng.toFixed(4)}`
+          : <span className="italic">not set</span>}
+      </TableCell>
+      <TableCell>
+        <div className="flex gap-1">
+          <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => setEditing(true)}>
+            <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+          </Button>
+          {confirmDelete ? (
+            <>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-8 px-2 text-xs text-destructive"
+                disabled={remove.isPending}
+                onClick={() => remove.mutate()}
+              >
+                Confirm
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-8 w-8 p-0"
+                onClick={() => setConfirmDelete(false)}
+              >
+                <X className="h-3.5 w-3.5 text-muted-foreground" />
+              </Button>
+            </>
+          ) : (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8 w-8 p-0"
+              onClick={() => setConfirmDelete(true)}
+            >
+              <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
+            </Button>
+          )}
+        </div>
+      </TableCell>
+    </TableRow>
+  );
+}
+
+function OfficesSection() {
+  const queryClient = useQueryClient();
+  const [showAdd, setShowAdd] = useState(false);
+  const [addForm, setAddForm] = useState<OfficeFormState>(EMPTY_FORM);
+
+  const { data: offices = [], isLoading } = useQuery<Office[]>({
+    queryKey: ['offices'],
+    queryFn: fetchOffices,
+  });
+
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['offices'] });
+
+  const add = useMutation({
+    mutationFn: () => createOffice(formToPayload(addForm) as Omit<Office, 'id'>),
+    onSuccess: () => {
+      invalidate();
+      setShowAdd(false);
+      setAddForm(EMPTY_FORM);
+      toast({ title: 'Office added' });
+    },
+    onError: () => toast({ title: 'Failed to add office' }),
+  });
+
+  const canAdd = addForm.name.trim() && addForm.city.trim() && addForm.state.trim();
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Building2 className="h-4 w-4 text-primary" />
+              Office Locations
+            </CardTitle>
+            <CardDescription className="mt-1">
+              Offices and headquarters that appear on the Engagement Map.
+            </CardDescription>
+          </div>
+          {!showAdd && (
+            <Button size="sm" variant="outline" onClick={() => setShowAdd(true)} className="gap-1.5">
+              <Plus className="h-3.5 w-3.5" />
+              Add office
+            </Button>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="text-center py-6 text-muted-foreground text-sm animate-pulse">Loading offices…</div>
+        ) : (
+          <div className="rounded-lg border border-border overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>City</TableHead>
+                  <TableHead>State</TableHead>
+                  <TableHead>Coordinates</TableHead>
+                  <TableHead className="w-20"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {/* Add row */}
+                {showAdd && (
+                  <TableRow className="bg-primary/5">
+                    <TableCell>
+                      <Input
+                        value={addForm.name}
+                        onChange={e => setAddForm(f => ({ ...f, name: e.target.value }))}
+                        placeholder="e.g. HQ"
+                        className="h-8 text-sm"
+                        autoFocus
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Input
+                        value={addForm.city}
+                        onChange={e => setAddForm(f => ({ ...f, city: e.target.value }))}
+                        placeholder="City"
+                        className="h-8 text-sm"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Input
+                        value={addForm.state}
+                        onChange={e => setAddForm(f => ({ ...f, state: e.target.value }))}
+                        placeholder="State"
+                        className="h-8 text-sm"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex gap-1">
+                        <Input
+                          value={addForm.lat}
+                          onChange={e => setAddForm(f => ({ ...f, lat: e.target.value }))}
+                          placeholder="Lat"
+                          className="h-8 text-sm w-24"
+                          type="number"
+                          step="any"
+                        />
+                        <Input
+                          value={addForm.lng}
+                          onChange={e => setAddForm(f => ({ ...f, lng: e.target.value }))}
+                          placeholder="Lng"
+                          className="h-8 text-sm w-24"
+                          type="number"
+                          step="any"
+                        />
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex gap-1">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 w-8 p-0 text-green-600"
+                          disabled={add.isPending || !canAdd}
+                          onClick={() => add.mutate()}
+                        >
+                          <Check className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 w-8 p-0 text-muted-foreground"
+                          onClick={() => { setShowAdd(false); setAddForm(EMPTY_FORM); }}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )}
+
+                {offices.length === 0 && !showAdd && (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground text-sm">
+                      No offices added yet. Click "Add office" to get started.
+                    </TableCell>
+                  </TableRow>
+                )}
+
+                {offices.map(office => (
+                  <OfficeRow
+                    key={office.id}
+                    office={office}
+                    onSaved={invalidate}
+                    onDeleted={invalidate}
+                  />
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+        <p className="text-xs text-muted-foreground mt-3">
+          Lat/Lng are optional — if left blank the office will still be listed but won't appear on the map.
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
+
 // ── Audit log tab ─────────────────────────────────────────────────────────────
 
-const RESOURCE_TYPES = ['all', 'person', 'event', 'invitation', 'virtual_meeting', 'setting'];
+const RESOURCE_TYPES = ['all', 'person', 'event', 'invitation', 'virtual_meeting', 'setting', 'office'];
 
 function AuditLogTab() {
   const [page, setPage] = useState(1);
@@ -447,6 +834,7 @@ export default function SettingsPage() {
       <Tabs defaultValue="config">
         <TabsList>
           <TabsTrigger value="config">Configuration</TabsTrigger>
+          <TabsTrigger value="offices">Offices</TabsTrigger>
           <TabsTrigger value="audit">Audit Log</TabsTrigger>
         </TabsList>
 
@@ -460,6 +848,10 @@ export default function SettingsPage() {
               <NotificationsSection />
             </>
           )}
+        </TabsContent>
+
+        <TabsContent value="offices" className="mt-4">
+          <OfficesSection />
         </TabsContent>
 
         <TabsContent value="audit" className="mt-4">

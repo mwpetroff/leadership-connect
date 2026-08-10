@@ -83,6 +83,14 @@ vi.mock('@workspace/db', () => ({
     personId: 'personId',
     status: 'status',
   },
+  officesTable: {
+    id: 'id',
+    name: 'name',
+    city: 'city',
+    state: 'state',
+    lat: 'lat',
+    lng: 'lng',
+  },
   eventLeadersTable: {},
   virtualMeetingsTable: {},
   virtualMeetingParticipantsTable: {},
@@ -96,23 +104,50 @@ beforeEach(() => { vi.resetAllMocks(); });
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
+const mockOffice = {
+  id: 1,
+  name: 'HQ',
+  city: 'Chicago',
+  state: 'IL',
+  lat: 41.8781136,
+  lng: -87.6297982,
+};
+
 describe('GET /api/map-data', () => {
-  it('returns 200 with people, events, and invitees', async () => {
+  it('returns 200 with people, events, invitees, and offices', async () => {
     mockDb.select
       .mockReturnValueOnce(makeChain([mockPerson]))      // people query
       .mockReturnValueOnce(makeChain([mockEvent]))       // events query
-      .mockReturnValueOnce(makeChain([mockInvitation])); // invitations query
+      .mockReturnValueOnce(makeChain([mockInvitation])) // invitations query
+      .mockReturnValueOnce(makeChain([mockOffice]));    // offices query
 
     const res = await request(app).get('/api/map-data');
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty('people');
     expect(res.body).toHaveProperty('events');
+    expect(res.body).toHaveProperty('offices');
+  });
+
+  it('includes office data in the response', async () => {
+    mockDb.select
+      .mockReturnValueOnce(makeChain([mockPerson]))
+      .mockReturnValueOnce(makeChain([mockEvent]))
+      .mockReturnValueOnce(makeChain([]))
+      .mockReturnValueOnce(makeChain([mockOffice]));
+
+    const res = await request(app).get('/api/map-data');
+    expect(res.status).toBe(200);
+    expect(res.body.offices).toHaveLength(1);
+    expect(res.body.offices[0].name).toBe('HQ');
+    expect(res.body.offices[0].lat).toBe(41.8781136);
+    expect(res.body.offices[0].lng).toBe(-87.6297982);
   });
 
   it('includes lat and lng in people response', async () => {
     mockDb.select
       .mockReturnValueOnce(makeChain([mockPerson]))
       .mockReturnValueOnce(makeChain([mockEvent]))
+      .mockReturnValueOnce(makeChain([]))
       .mockReturnValueOnce(makeChain([]));
 
     const res = await request(app).get('/api/map-data');
@@ -125,6 +160,7 @@ describe('GET /api/map-data', () => {
     mockDb.select
       .mockReturnValueOnce(makeChain([mockPerson]))
       .mockReturnValueOnce(makeChain([mockEvent]))
+      .mockReturnValueOnce(makeChain([]))
       .mockReturnValueOnce(makeChain([]));
 
     const res = await request(app).get('/api/map-data');
@@ -137,6 +173,7 @@ describe('GET /api/map-data', () => {
     const personWithoutCoords = { ...mockPerson, lat: null, lng: null };
     mockDb.select
       .mockReturnValueOnce(makeChain([personWithoutCoords]))
+      .mockReturnValueOnce(makeChain([]))
       .mockReturnValueOnce(makeChain([]))
       .mockReturnValueOnce(makeChain([]));
 
@@ -151,7 +188,8 @@ describe('GET /api/map-data', () => {
     mockDb.select
       .mockReturnValueOnce(makeChain([mockPerson]))
       .mockReturnValueOnce(makeChain([mockEvent]))
-      .mockReturnValueOnce(makeChain([mockInvitation]));
+      .mockReturnValueOnce(makeChain([mockInvitation]))
+      .mockReturnValueOnce(makeChain([]));
 
     const res = await request(app).get('/api/map-data');
     expect(res.status).toBe(200);
@@ -166,7 +204,8 @@ describe('GET /api/map-data', () => {
     mockDb.select
       .mockReturnValueOnce(makeChain([mockPerson]))
       .mockReturnValueOnce(makeChain([mockEvent]))
-      .mockReturnValueOnce(makeChain([orphanInvitation]));
+      .mockReturnValueOnce(makeChain([orphanInvitation]))
+      .mockReturnValueOnce(makeChain([]));
 
     const res = await request(app).get('/api/map-data');
     expect(res.status).toBe(200);
@@ -178,11 +217,13 @@ describe('GET /api/map-data', () => {
     mockDb.select
       .mockReturnValueOnce(makeChain([]))
       .mockReturnValueOnce(makeChain([]))
+      .mockReturnValueOnce(makeChain([]))
       .mockReturnValueOnce(makeChain([]));
 
     const res = await request(app).get('/api/map-data');
     expect(res.status).toBe(200);
     expect(res.body.people).toHaveLength(0);
     expect(res.body.events).toHaveLength(0);
+    expect(res.body.offices).toHaveLength(0);
   });
 });

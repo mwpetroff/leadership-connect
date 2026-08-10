@@ -7,3 +7,4 @@ export * from "./virtualMeetingParticipants";
 export * from "./msalTokenCache";
 export * from "./settings";
 export * from "./auditLog";
+export * from "./offices";

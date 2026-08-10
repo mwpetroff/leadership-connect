@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
-import { db, peopleTable, eventsTable, invitationsTable } from "@workspace/db";
+import { db, peopleTable, eventsTable, invitationsTable, officesTable } from "@workspace/db";
 
 const router: IRouter = Router();
 
@@ -15,7 +15,7 @@ const router: IRouter = Router();
  * can skip Nominatim for known records.
  */
 router.get("/map-data", async (_req, res): Promise<void> => {
-  const [people, events, invitations] = await Promise.all([
+  const [people, events, invitations, offices] = await Promise.all([
     db.select({
       id: peopleTable.id,
       name: peopleTable.name,
@@ -45,6 +45,15 @@ router.get("/map-data", async (_req, res): Promise<void> => {
       personId: invitationsTable.personId,
       status: invitationsTable.status,
     }).from(invitationsTable),
+
+    db.select({
+      id: officesTable.id,
+      name: officesTable.name,
+      city: officesTable.city,
+      state: officesTable.state,
+      lat: officesTable.lat,
+      lng: officesTable.lng,
+    }).from(officesTable),
   ]);
 
   // Build a personId → person lookup for enriching invitations
@@ -67,7 +76,7 @@ router.get("/map-data", async (_req, res): Promise<void> => {
       }),
   }));
 
-  res.json({ people, events: eventsWithInvitees });
+  res.json({ people, events: eventsWithInvitees, offices });
 });
 
 export default router;

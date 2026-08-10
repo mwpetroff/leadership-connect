@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { MapPin, Users, CalendarDays, X, Loader2, Info } from 'lucide-react';
+import { MapPin, Users, CalendarDays, X, Loader2, Info, Building2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 
@@ -39,15 +39,26 @@ interface MapEvent {
   invitees: MapInvitee[];
 }
 
+interface MapOffice {
+  id: number;
+  name: string;
+  city: string;
+  state: string;
+  lat: number | null;
+  lng: number | null;
+}
+
 interface MapData {
   people: MapPerson[];
   events: MapEvent[];
+  offices: MapOffice[];
 }
 
 interface LatLng { lat: number; lng: number; }
 
 interface PlottedPerson extends MapPerson { latlng: LatLng; }
 interface PlottedEvent extends MapEvent { latlng: LatLng; }
+interface PlottedOffice extends MapOffice { latlng: LatLng; }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -74,18 +85,19 @@ function initials(name: string) {
 
 // ── LeafletMap (lazy-loaded to avoid SSR issues) ─────────────────────────────
 
-type SelectionType = 'person' | 'event' | null;
+type SelectionType = 'person' | 'event' | 'office' | null;
 interface Selection { type: SelectionType; id: number; }
 
 interface LeafletMapProps {
   people: PlottedPerson[];
   events: PlottedEvent[];
+  offices: PlottedOffice[];
   selection: Selection | null;
   onSelect: (s: Selection | null) => void;
-  filter: { showExecs: boolean; showLeaders: boolean; showStaff: boolean; showEvents: boolean };
+  filter: { showExecs: boolean; showLeaders: boolean; showStaff: boolean; showEvents: boolean; showOffices: boolean };
 }
 
-function LeafletMap({ people, events, selection, onSelect, filter }: LeafletMapProps) {
+function LeafletMap({ people, events, offices, selection, onSelect, filter }: LeafletMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
@@ -128,6 +140,15 @@ function LeafletMap({ people, events, selection, onSelect, filter }: LeafletMapP
     linesRef.current.forEach(l => l.remove());
     markersRef.current = [];
     linesRef.current = [];
+  }
+
+  function escHtml(s: string): string {
+    return s
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
 
   function drawMarkers() {
@@ -223,6 +244,46 @@ function LeafletMap({ people, events, selection, onSelect, filter }: LeafletMapP
       });
     }
 
+    // Draw offices
+    if (filter.showOffices) {
+      offices.forEach(office => {
+        const isSelected = selection?.type === 'office' && selection.id === office.id;
+        const isDimmed = selection !== null && selection.type !== 'office' && !isSelected;
+
+        const safeName = escHtml(office.name);
+        const safeCity = escHtml(office.city);
+        const safeState = escHtml(office.state);
+        const labelText = office.name.length > 18 ? escHtml(office.name.substring(0, 16)) + '…' : safeName;
+
+        const svgSize = isSelected ? 40 : 34;
+        const icon = L.divIcon({
+          html: `
+            <div style="position:relative;width:${svgSize}px;height:${svgSize}px">
+              <svg viewBox="0 0 34 34" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%;opacity:${isDimmed ? 0.25 : 1}">
+                <rect x="3" y="3" width="28" height="28" rx="6" fill="${isSelected ? '#0f766e' : '#14b8a6'}" stroke="${isSelected ? '#042f2e' : '#0d9488'}" stroke-width="${isSelected ? 2 : 1.5}"/>
+                <text x="17" y="22" text-anchor="middle" font-size="15" fill="white">🏢</text>
+              </svg>
+              <div style="position:absolute;left:50%;transform:translateX(-50%);bottom:-18px;white-space:nowrap;font-size:10px;font-weight:600;color:${isSelected ? '#0f766e' : '#0d9488'};background:white;padding:1px 4px;border-radius:3px;box-shadow:0 1px 3px rgba(0,0,0,.2);opacity:${isDimmed ? 0.25 : 1}">
+                ${labelText}
+              </div>
+            </div>`,
+          iconSize: [svgSize, svgSize + 20],
+          iconAnchor: [svgSize / 2, svgSize / 2],
+          className: '',
+        });
+
+        const marker = L.marker([office.latlng.lat, office.latlng.lng], { icon, zIndexOffset: isSelected ? 1500 : 800 }).addTo(map);
+        marker.bindTooltip(
+          `<div class="font-medium">${safeName}</div><div class="text-xs opacity-75">${safeCity}, ${safeState}</div>`,
+          { direction: 'top', className: 'leaflet-tooltip-custom' }
+        );
+        marker.on('click', () => {
+          onSelect(isSelected ? null : { type: 'office', id: office.id });
+        });
+        markersRef.current.push(marker);
+      });
+    }
+
     // Draw connection lines
     if (selection) {
       const selectedEvent = selection.type === 'event' ? events.find(e => e.id === selection.id) : null;
@@ -253,7 +314,7 @@ function LeafletMap({ people, events, selection, onSelect, filter }: LeafletMapP
   // Redraw when data or selection changes
   useEffect(() => {
     drawMarkers();
-  }, [people, events, selection, filter]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [people, events, offices, selection, filter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return <div ref={containerRef} className="w-full h-full rounded-xl overflow-hidden" />;
 }
@@ -357,11 +418,32 @@ function EventPanel({ event, people }: { event: MapEvent; people: MapPerson[] })
   );
 }
 
+function OfficePanel({ office }: { office: MapOffice }) {
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3">
+        <div className="h-10 w-10 rounded-lg flex items-center justify-center shrink-0 bg-teal-100">
+          <Building2 className="h-5 w-5 text-teal-700" />
+        </div>
+        <div>
+          <div className="font-semibold text-foreground">{office.name}</div>
+          <div className="text-xs text-muted-foreground">{office.city}, {office.state}</div>
+        </div>
+      </div>
+      {office.lat != null && office.lng != null && (
+        <div className="text-xs text-muted-foreground font-mono bg-muted/50 rounded-lg p-2">
+          {office.lat.toFixed(5)}, {office.lng.toFixed(5)}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function EngagementMap() {
   const [selection, setSelection] = useState<Selection | null>(null);
-  const [filter, setFilter] = useState({ showExecs: true, showLeaders: true, showStaff: true, showEvents: true });
+  const [filter, setFilter] = useState({ showExecs: true, showLeaders: true, showStaff: true, showEvents: true, showOffices: true });
 
   const { data, isLoading } = useQuery<MapData>({
     queryKey: ['map-data'],
@@ -386,8 +468,6 @@ export default function EngagementMap() {
   if (!data) return null;
 
   // Only plot records that have server-stored coordinates.
-  // Records without coords were either not found by geocoding or haven't been
-  // processed yet — the server backfill handles those asynchronously.
   const plottedPeople: PlottedPerson[] = data.people.flatMap(p => {
     if (p.lat === null || p.lat === undefined || p.lng === null || p.lng === undefined) return [];
     return [{ ...p, latlng: { lat: p.lat, lng: p.lng } }];
@@ -398,13 +478,21 @@ export default function EngagementMap() {
     return [{ ...e, latlng: { lat: e.lat, lng: e.lng } }];
   });
 
+  const plottedOffices: PlottedOffice[] = (data.offices ?? []).flatMap(o => {
+    if (o.lat === null || o.lat === undefined || o.lng === null || o.lng === undefined) return [];
+    return [{ ...o, latlng: { lat: o.lat, lng: o.lng } }];
+  });
+
   const selectedPerson = selection?.type === 'person' ? data.people.find(p => p.id === selection.id) : null;
   const selectedEvent = selection?.type === 'event' ? data.events.find(e => e.id === selection.id) : null;
+  const selectedOffice = selection?.type === 'office' ? (data.offices ?? []).find(o => o.id === selection.id) : null;
 
   const totalPeople = data.people.length;
   const plottedCount = plottedPeople.length;
   const totalEvents = data.events.length;
   const plottedEventsCount = plottedEvents.length;
+
+  const hasAnything = plottedPeople.length > 0 || plottedEvents.length > 0 || plottedOffices.length > 0;
 
   return (
     <div className="space-y-4 pb-4">
@@ -447,6 +535,7 @@ export default function EngagementMap() {
               { key: 'showLeaders', label: 'Leaders', color: '#8b5cf6', count: data.people.filter(p => p.role === 'secondary_leader').length },
               { key: 'showStaff', label: 'Staff', color: '#38bdf8', count: data.people.filter(p => p.role === 'staff').length },
               { key: 'showEvents', label: 'Events', color: '#7c3aed', count: data.events.length, isSquare: true },
+              { key: 'showOffices', label: 'Offices', color: '#14b8a6', count: (data.offices ?? []).length, isSquare: true },
             ].map(item => (
               <label key={item.key} className="flex items-center gap-2.5 cursor-pointer group">
                 <input
@@ -477,16 +566,16 @@ export default function EngagementMap() {
           {!selection && (
             <div className="bg-primary/5 border border-primary/15 rounded-xl p-4 text-sm text-muted-foreground">
               <div className="font-medium text-foreground mb-1">Tip</div>
-              Click any person or event marker on the map to see their connections and invitation details.
+              Click any person, event, or office marker on the map to see details.
             </div>
           )}
 
           {/* Detail panel */}
-          {(selectedPerson || selectedEvent) && (
+          {(selectedPerson || selectedEvent || selectedOffice) && (
             <div className="bg-card border border-border rounded-xl p-4 flex-1">
               <div className="flex items-center justify-between mb-4">
                 <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  {selectedPerson ? 'Person' : 'Event'} Details
+                  {selectedPerson ? 'Person' : selectedEvent ? 'Event' : 'Office'} Details
                 </div>
                 <button onClick={() => setSelection(null)} className="p-1 rounded-lg hover:bg-muted transition-colors">
                   <X className="h-4 w-4 text-muted-foreground" />
@@ -494,13 +583,14 @@ export default function EngagementMap() {
               </div>
               {selectedPerson && <PersonPanel person={selectedPerson} events={plottedEvents} />}
               {selectedEvent && <EventPanel event={selectedEvent} people={data.people} />}
+              {selectedOffice && <OfficePanel office={selectedOffice} />}
             </div>
           )}
         </div>
 
         {/* Map */}
         <div className="flex-1 bg-card border border-border rounded-xl overflow-hidden shadow-sm">
-          {plottedPeople.length === 0 && plottedEvents.length === 0 ? (
+          {!hasAnything ? (
             <div className="flex items-center justify-center h-full">
               <div className="text-center space-y-2">
                 <MapPin className="h-10 w-10 text-muted-foreground/40 mx-auto" />
@@ -512,6 +602,7 @@ export default function EngagementMap() {
             <LeafletMap
               people={plottedPeople}
               events={plottedEvents}
+              offices={plottedOffices}
               selection={selection}
               onSelect={setSelection}
               filter={filter}
