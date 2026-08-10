@@ -452,9 +452,9 @@ export default function EngagementMap() {
         )}
       </div>
 
-      <div className="flex gap-4" style={{ height: 'calc(100vh - 220px)', minHeight: 500 }}>
+      <div className="flex flex-col md:flex-row gap-4 md:min-h-[500px]" style={{ '--map-h': 'calc(100vh - 220px)' } as React.CSSProperties}>
         {/* Left panel — filters + detail */}
-        <div className="w-72 shrink-0 flex flex-col gap-3 overflow-y-auto">
+        <div className="w-full md:w-72 shrink-0 flex flex-col gap-3 md:h-[var(--map-h)] md:overflow-y-auto">
           {/* Stats */}
           <div className="bg-card border border-border rounded-xl p-4 space-y-3">
             <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Overview</div>
@@ -536,7 +536,7 @@ export default function EngagementMap() {
         </div>
 
         {/* Map */}
-        <div className="flex-1 bg-card border border-border rounded-xl overflow-hidden shadow-sm">
+        <div className="flex-1 bg-card border border-border rounded-xl overflow-hidden shadow-sm h-[60vw] min-h-[300px] md:h-[var(--map-h)]">
           {plottedPeople.length === 0 && plottedEvents.length === 0 && !geocoding ? (
             <div className="flex items-center justify-center h-full">
               <div className="text-center space-y-2">
