@@ -24,7 +24,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Settings, Shield, ChevronDown, ChevronRight, AlertCircle, Building2, Pencil, Trash2, Plus, X, Check } from 'lucide-react';
+import { Settings, Shield, ChevronDown, ChevronRight, AlertCircle, Building2, Pencil, Trash2, Plus, X, Check, Upload, FileText, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { formatDistanceToNow, parseISO } from 'date-fns';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -699,6 +699,217 @@ function OfficesSection() {
   );
 }
 
+// ── Import People ─────────────────────────────────────────────────────────────
+
+interface ImportSkippedRow {
+  row: number;
+  email: string;
+  reason: string;
+}
+
+interface ImportResult {
+  created: number;
+  updated: number;
+  skipped: ImportSkippedRow[];
+}
+
+const CSV_TEMPLATE = [
+  'name,email,role,title,department,homeCity,homeState',
+  'Jane Smith,jane.smith@example.com,staff,Senior Engineer,Engineering,Austin,TX',
+  'John Doe,john.doe@example.com,executive,VP of Sales,Sales,New York,NY',
+].join('\n');
+
+function downloadTemplate() {
+  const blob = new Blob([CSV_TEMPLATE], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'people-import-template.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+async function postImport(csv: string): Promise<ImportResult> {
+  const res = await fetch(`${BASE}api/people/import`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'text/plain' },
+    body: csv,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({})) as { error?: string };
+    throw new Error(err.error ?? 'Import failed');
+  }
+  return res.json();
+}
+
+function ImportPeopleSection() {
+  const queryClient = useQueryClient();
+  const [file, setFile] = useState<File | null>(null);
+  const [result, setResult] = useState<ImportResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const importMutation = useMutation({
+    mutationFn: async (csvText: string) => postImport(csvText),
+    onSuccess: (data) => {
+      setResult(data);
+      setError(null);
+      queryClient.invalidateQueries({ queryKey: ['people'] });
+      if (data.created > 0 || data.updated > 0) {
+        toast({
+          title: 'Import complete',
+          description: `${data.created} created, ${data.updated} updated, ${data.skipped.length} skipped`,
+        });
+      }
+    },
+    onError: (err: Error) => {
+      setError(err.message);
+      setResult(null);
+    },
+  });
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const selected = e.target.files?.[0] ?? null;
+    setFile(selected);
+    setResult(null);
+    setError(null);
+  }
+
+  async function handleImport() {
+    if (!file) return;
+    const text = await file.text();
+    importMutation.mutate(text);
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base flex items-center gap-2">
+          <Upload className="h-4 w-4 text-primary" />
+          Import People
+        </CardTitle>
+        <CardDescription>
+          Upload a CSV exported from Workday, BambooHR, or any HRIS. Duplicate emails are updated, not rejected.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        {/* Template download */}
+        <div className="flex items-start gap-3 rounded-lg border border-dashed p-4 bg-muted/20">
+          <FileText className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium">Accepted columns</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              <code className="bg-muted px-1 py-0.5 rounded text-[11px]">name</code>{' '}
+              <code className="bg-muted px-1 py-0.5 rounded text-[11px]">email</code>{' '}
+              <span className="text-muted-foreground">(required)</span>
+              {' · '}
+              <code className="bg-muted px-1 py-0.5 rounded text-[11px]">role</code>{' '}
+              <code className="bg-muted px-1 py-0.5 rounded text-[11px]">title</code>{' '}
+              <code className="bg-muted px-1 py-0.5 rounded text-[11px]">department</code>{' '}
+              <code className="bg-muted px-1 py-0.5 rounded text-[11px]">homeCity</code>{' '}
+              <code className="bg-muted px-1 py-0.5 rounded text-[11px]">homeState</code>{' '}
+              <span className="text-muted-foreground">(optional)</span>
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Valid roles: <code className="bg-muted px-1 py-0.5 rounded text-[11px]">executive</code>{' '}
+              <code className="bg-muted px-1 py-0.5 rounded text-[11px]">secondary_leader</code>{' '}
+              <code className="bg-muted px-1 py-0.5 rounded text-[11px]">staff</code>{' '}
+              (defaults to <em>staff</em> if blank or unrecognised)
+            </p>
+          </div>
+          <Button variant="outline" size="sm" onClick={downloadTemplate} className="shrink-0">
+            Download template
+          </Button>
+        </div>
+
+        {/* File picker */}
+        <div className="space-y-2">
+          <Label htmlFor="csv-upload">CSV file</Label>
+          <div className="flex items-center gap-3">
+            <Input
+              id="csv-upload"
+              type="file"
+              accept=".csv,text/csv"
+              className="max-w-sm cursor-pointer"
+              onChange={handleFileChange}
+            />
+            <Button
+              onClick={handleImport}
+              disabled={!file || importMutation.isPending}
+              size="sm"
+            >
+              {importMutation.isPending ? 'Importing…' : 'Import'}
+            </Button>
+          </div>
+          {file && !importMutation.isPending && !result && (
+            <p className="text-xs text-muted-foreground">{file.name} · {(file.size / 1024).toFixed(1)} KB selected</p>
+          )}
+        </div>
+
+        {/* Error banner */}
+        {error && (
+          <div className="flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
+            <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+            {error}
+          </div>
+        )}
+
+        {/* Success summary */}
+        {result && (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-sm font-medium text-green-700">
+              <CheckCircle2 className="h-4 w-4" />
+              Import complete
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="rounded-lg border bg-green-50 border-green-200 p-3 text-center">
+                <div className="text-2xl font-bold text-green-700">{result.created}</div>
+                <div className="text-xs text-green-600 mt-0.5">Created</div>
+              </div>
+              <div className="rounded-lg border bg-blue-50 border-blue-200 p-3 text-center">
+                <div className="text-2xl font-bold text-blue-700">{result.updated}</div>
+                <div className="text-xs text-blue-600 mt-0.5">Updated</div>
+              </div>
+              <div className="rounded-lg border bg-amber-50 border-amber-200 p-3 text-center">
+                <div className="text-2xl font-bold text-amber-700">{result.skipped.length}</div>
+                <div className="text-xs text-amber-600 mt-0.5">Skipped</div>
+              </div>
+            </div>
+
+            {result.skipped.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  Skipped rows — fix and re-upload
+                </p>
+                <div className="rounded-lg border border-border overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-16">Row</TableHead>
+                        <TableHead>Email</TableHead>
+                        <TableHead>Reason</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {result.skipped.map((s) => (
+                        <TableRow key={`${s.row}-${s.email}`}>
+                          <TableCell className="text-xs font-mono text-muted-foreground">{s.row}</TableCell>
+                          <TableCell className="text-xs font-mono">{s.email}</TableCell>
+                          <TableCell className="text-xs text-destructive">{s.reason}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 // ── Audit log tab ─────────────────────────────────────────────────────────────
 
 const RESOURCE_TYPES = ['all', 'person', 'event', 'invitation', 'virtual_meeting', 'setting', 'office'];
@@ -835,6 +1046,7 @@ export default function SettingsPage() {
         <TabsList>
           <TabsTrigger value="config">Configuration</TabsTrigger>
           <TabsTrigger value="offices">Offices</TabsTrigger>
+          <TabsTrigger value="import">Import People</TabsTrigger>
           <TabsTrigger value="audit">Audit Log</TabsTrigger>
         </TabsList>
 
@@ -852,6 +1064,10 @@ export default function SettingsPage() {
 
         <TabsContent value="offices" className="mt-4">
           <OfficesSection />
+        </TabsContent>
+
+        <TabsContent value="import" className="mt-4">
+          <ImportPeopleSection />
         </TabsContent>
 
         <TabsContent value="audit" className="mt-4">
