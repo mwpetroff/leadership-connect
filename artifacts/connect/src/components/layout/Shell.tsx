@@ -11,6 +11,7 @@ import {
   LogOut,
   Settings,
   Heart,
+  Map,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
@@ -25,6 +26,7 @@ const navItems = [
   { name: 'Events', href: '/events', icon: CalendarDays, adminOnly: false },
   { name: 'Virtual Meetings', href: '/virtual-meetings', icon: Video, adminOnly: false },
   { name: 'Suggestions Hub', href: '/suggestions', icon: Lightbulb, adminOnly: false },
+  { name: 'Engagement Map', href: '/map', icon: Map, adminOnly: false },
   { name: 'Settings', href: '/settings', icon: Settings, adminOnly: true },
 ];
 

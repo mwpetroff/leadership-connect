@@ -8,6 +8,7 @@ import dashboardRouter from "./dashboard";
 import suggestionsRouter from "./suggestions";
 import settingsRouter from "./settings";
 import auditLogRouter from "./auditLog";
+import mapDataRouter from "./mapData";
 import { requireAuth, requireRole } from "../lib/auth";
 import { seedDefaults } from "../lib/settings-store";
 
@@ -66,5 +67,6 @@ router.use(dashboardRouter);
 router.use(suggestionsRouter);
 router.use(settingsRouter);
 router.use(auditLogRouter);
+router.use(mapDataRouter);
 
 export default router;
