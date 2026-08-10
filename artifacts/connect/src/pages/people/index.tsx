@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
 import { Link } from 'wouter';
 import {
-  useListPeople, useCreatePerson, useUpdatePerson,
-  getListPeopleQueryKey,
+  useListPeople, useCreatePerson, useUpdatePerson, useDeletePerson,
+  getListPeopleQueryKey, getGetDashboardSummaryQueryKey,
 } from '@workspace/api-client-react';
-import { Search, Filter, MapPin, Building2, Plus, Pencil } from 'lucide-react';
+import { Search, Filter, MapPin, Building2, Plus, Pencil, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/components/ui/use-toast';
 import { PersonForm, type PersonFormValues } from '@/components/forms/PersonForm';
+import { ConfirmDialog } from '@/components/forms/ConfirmDialog';
 import type { PersonRole, Person } from '@workspace/api-client-react';
 import { useAuth } from '@/lib/auth';
 
@@ -23,6 +24,7 @@ export default function PeopleDirectory() {
   const [roleFilter, setRoleFilter] = useState<PersonRole | undefined>();
   const [showAdd, setShowAdd] = useState(false);
   const [editPerson, setEditPerson] = useState<Person | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
 
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -41,6 +43,18 @@ export default function PeopleDirectory() {
         toast({ title: 'Person added', description: 'Profile created successfully.' });
       },
       onError: () => toast({ title: 'Error', description: 'Failed to create person.' }),
+    },
+  });
+
+  const deletePerson = useDeletePerson({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListPeopleQueryKey() });
+        queryClient.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
+        setDeletingId(null);
+        toast({ title: 'Person removed' });
+      },
+      onError: () => toast({ title: 'Error', description: 'Failed to remove person.' }),
     },
   });
 
@@ -158,19 +172,28 @@ export default function PeopleDirectory() {
                     <td className="py-3 px-4 text-right">
                       <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-end gap-2">
                         {isAdmin && (
-                          <button
-                            onClick={() => setEditPerson(person)}
-                            className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
-                            title="Edit"
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </button>
+                          <>
+                            <button
+                              onClick={() => setEditPerson(person)}
+                              className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
+                              title="Edit"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              onClick={() => setDeletingId(person.id)}
+                              className="p-1.5 rounded hover:bg-red-50 text-muted-foreground hover:text-red-600"
+                              title="Remove"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </>
                         )}
                         <Link
                           href={`/people/${person.id}`}
                           className="px-3 py-1.5 bg-secondary text-secondary-foreground text-xs font-medium rounded hover:bg-secondary/80"
                         >
-                          View Profile
+                          View
                         </Link>
                       </div>
                     </td>
@@ -204,6 +227,16 @@ export default function PeopleDirectory() {
         isPending={updatePerson.isPending}
         defaultValues={editPerson ?? undefined}
         mode="edit"
+      />
+
+      <ConfirmDialog
+        open={deletingId !== null}
+        title="Remove person?"
+        description="This permanently deletes the person and all their engagement history. This cannot be undone."
+        confirmLabel="Remove"
+        isPending={deletePerson.isPending}
+        onConfirm={() => deletingId !== null && deletePerson.mutate({ id: deletingId })}
+        onCancel={() => setDeletingId(null)}
       />
     </div>
   );

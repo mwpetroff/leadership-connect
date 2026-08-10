@@ -15,7 +15,7 @@ import { useAuth } from '@/lib/auth';
 export default function VirtualMeetings() {
   const [statusFilter, setStatusFilter] = useState<ListVirtualMeetingsStatus | undefined>();
   const [showCreate, setShowCreate] = useState(false);
-  const { isAdmin } = useAuth();
+  const { isAdmin, isLeader } = useAuth();
 
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -62,7 +62,7 @@ export default function VirtualMeetings() {
           <h1 className="text-3xl font-bold tracking-tight text-foreground">Virtual Meetings</h1>
           <p className="text-muted-foreground mt-1">Track 1:1s, group syncs, and suggested touchpoints.</p>
         </div>
-        {isAdmin && (
+        {isLeader && (
           <button
             onClick={() => setShowCreate(true)}
             className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground font-medium rounded-md shadow-sm hover:bg-primary/90 transition-colors"

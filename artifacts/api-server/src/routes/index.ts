@@ -10,6 +10,7 @@ import settingsRouter from "./settings";
 import auditLogRouter from "./auditLog";
 import mapDataRouter from "./mapData";
 import officesRouter from "./offices";
+import orgChartRouter from "./orgChart";
 import { requireAuth, requireRole } from "../lib/auth";
 import { seedDefaults } from "../lib/settings-store";
 
@@ -70,5 +71,6 @@ router.use(settingsRouter);
 router.use(auditLogRouter);
 router.use(mapDataRouter);
 router.use(officesRouter);
+router.use(orgChartRouter);
 
 export default router;

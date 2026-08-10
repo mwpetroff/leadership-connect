@@ -2,11 +2,11 @@ import React, { useState } from 'react';
 import { useParams, Link, useLocation } from 'wouter';
 import {
   useGetPerson, useGetPersonEngagement, useUpdatePerson, useDeletePerson,
-  useCreateVirtualMeeting, useAddVirtualMeetingParticipant,
+  useCreateVirtualMeeting, useAddVirtualMeetingParticipant, useListPeople,
   getGetPersonQueryKey, getGetPersonEngagementQueryKey,
   getListPeopleQueryKey, getGetDashboardSummaryQueryKey,
 } from '@workspace/api-client-react';
-import { Mail, MapPin, Building2, Calendar, Video, Clock, Trash2 } from 'lucide-react';
+import { Mail, MapPin, Building2, Calendar, Video, Clock, Trash2, UserCircle2, Users } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useQueryClient } from '@tanstack/react-query';
@@ -38,6 +38,13 @@ export default function PersonDetail() {
   const { data: person, isLoading: loadingPerson } = useGetPerson(personId, {
     query: { enabled: !!personId, queryKey: getGetPersonQueryKey(personId) },
   });
+
+  // Manager + direct reports
+  const { data: allPeople } = useListPeople({}, {
+    query: { enabled: !!person, staleTime: 60_000 } as any,
+  });
+  const manager = allPeople?.find(p => p.id === (person as any)?.managerId) ?? null;
+  const directReports = allPeople?.filter(p => (p as any).managerId === personId) ?? [];
   const { data: engagement, isLoading: loadingEngagement } = useGetPersonEngagement(personId, {
     query: { enabled: !!personId, queryKey: getGetPersonEngagementQueryKey(personId) },
   });
@@ -167,6 +174,48 @@ export default function PersonDetail() {
           </div>
         )}
       </div>
+
+      {/* Manager + Direct Reports */}
+      {(manager || directReports.length > 0) && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {manager && (
+            <div className="bg-card border border-border rounded-xl p-4 shadow-sm">
+              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">
+                <UserCircle2 className="h-3.5 w-3.5" /> Reports To
+              </div>
+              <Link href={`/people/${manager.id}`} className="flex items-center gap-3 group">
+                <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm shrink-0">
+                  {manager.name.split(' ').map(n => n[0]).join('').substring(0, 2)}
+                </div>
+                <div>
+                  <div className="font-medium text-sm text-foreground group-hover:underline">{manager.name}</div>
+                  <div className="text-xs text-muted-foreground">{manager.title ?? 'No title'}</div>
+                </div>
+              </Link>
+            </div>
+          )}
+          {directReports.length > 0 && (
+            <div className="bg-card border border-border rounded-xl p-4 shadow-sm">
+              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">
+                <Users className="h-3.5 w-3.5" /> Direct Reports ({directReports.length})
+              </div>
+              <div className="space-y-2 max-h-40 overflow-y-auto">
+                {directReports.map(dr => (
+                  <Link key={dr.id} href={`/people/${dr.id}`} className="flex items-center gap-3 group">
+                    <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs shrink-0">
+                      {dr.name.split(' ').map(n => n[0]).join('').substring(0, 2)}
+                    </div>
+                    <div>
+                      <div className="font-medium text-sm text-foreground group-hover:underline">{dr.name}</div>
+                      <div className="text-xs text-muted-foreground">{dr.title ?? 'No title'}</div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Engagement Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

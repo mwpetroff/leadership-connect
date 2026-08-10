@@ -786,6 +786,8 @@ components:
           type: string
         homeState:
           type: string
+        managerId:
+          type: ["integer", "null"]
         notes:
           type: ["string", "null"]
         createdAt:
@@ -817,6 +819,9 @@ components:
         homeState:
           type: string
           minLength: 1
+        managerId:
+          type: integer
+          nullable: true
         notes:
           type: string
 
@@ -839,6 +844,9 @@ components:
           type: string
         homeState:
           type: string
+        managerId:
+          type: integer
+          nullable: true
         notes:
           type: string
 

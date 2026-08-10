@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, pgEnum, doublePrecision, index } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, timestamp, pgEnum, doublePrecision, index, type AnyPgColumn } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -16,6 +16,7 @@ export const peopleTable = pgTable("people", {
   lat: doublePrecision("lat"),
   lng: doublePrecision("lng"),
   geocodedAt: timestamp("geocoded_at", { withTimezone: true }),
+  managerId: integer("manager_id").references((): AnyPgColumn => peopleTable.id, { onDelete: "set null" }),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),

@@ -33,6 +33,7 @@ export const ListPeopleResponseItem = zod.object({
   "role": zod.enum(['executive', 'secondary_leader', 'staff']),
   "homeCity": zod.string(),
   "homeState": zod.string(),
+  "managerId": zod.number().int().nullable().optional(),
   "notes": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().optional()
@@ -56,6 +57,7 @@ export const CreatePersonBody = zod.object({
   "role": zod.enum(['executive', 'secondary_leader', 'staff']),
   "homeCity": zod.string().min(1),
   "homeState": zod.string().min(1),
+  "managerId": zod.number().int().nullable().optional(),
   "notes": zod.string().optional()
 })
 
@@ -68,6 +70,7 @@ export const CreatePersonResponse = zod.object({
   "role": zod.enum(['executive', 'secondary_leader', 'staff']),
   "homeCity": zod.string(),
   "homeState": zod.string(),
+  "managerId": zod.number().int().nullable().optional(),
   "notes": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().optional()
@@ -90,6 +93,7 @@ export const GetPersonResponse = zod.object({
   "role": zod.enum(['executive', 'secondary_leader', 'staff']),
   "homeCity": zod.string(),
   "homeState": zod.string(),
+  "managerId": zod.number().int().nullable().optional(),
   "notes": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().optional()
@@ -114,6 +118,7 @@ export const UpdatePersonBody = zod.object({
   "role": zod.enum(['executive', 'secondary_leader', 'staff']).optional(),
   "homeCity": zod.string().optional(),
   "homeState": zod.string().optional(),
+  "managerId": zod.number().int().nullable().optional(),
   "notes": zod.string().optional()
 })
 
@@ -126,6 +131,7 @@ export const UpdatePersonResponse = zod.object({
   "role": zod.enum(['executive', 'secondary_leader', 'staff']),
   "homeCity": zod.string(),
   "homeState": zod.string(),
+  "managerId": zod.number().int().nullable().optional(),
   "notes": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().optional()
