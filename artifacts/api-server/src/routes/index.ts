@@ -12,6 +12,7 @@ import mapDataRouter from "./mapData";
 import officesRouter from "./offices";
 import orgChartRouter from "./orgChart";
 import searchRouter from "./search";
+import venuesRouter from "./venues";
 import { requireAuth, requireRole } from "../lib/auth";
 import { seedDefaults } from "../lib/settings-store";
 
@@ -44,6 +45,8 @@ const LEADER_WRITE_PATTERNS: Array<{ method: string; pattern: RegExp }> = [
   // Bulk invitation operations (leaders can bulk-invite and mark attendance)
   { method: "POST",  pattern: /^\/events\/[^/]+\/invitations\/bulk$/ },
   { method: "PATCH", pattern: /^\/events\/[^/]+\/invitations\/bulk$/ },
+  // Venue creation (leaders can create venues when building events)
+  { method: "POST",  pattern: /^\/venues$/ },
 ];
 
 router.use((req, res, next) => {
@@ -74,5 +77,6 @@ router.use(mapDataRouter);
 router.use(officesRouter);
 router.use(orgChartRouter);
 router.use(searchRouter);
+router.use(venuesRouter);
 
 export default router;

@@ -13,10 +13,12 @@ import {
 } from '@workspace/api-client-react';
 import {
   MapPin, Calendar as CalendarIcon, Users, Building, Plus, X, Trash2,
-  CheckSquare, Square, ClipboardCheck, UserPlus, UsersRound,
+  CheckSquare, Square, ClipboardCheck, UserPlus, UsersRound, Star,
+  Radar, ChevronDown, ChevronUp, Loader2, Building2, ExternalLink,
+  User, Sunset,
 } from 'lucide-react';
 import { format, isPast, parseISO } from 'date-fns';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/components/ui/use-toast';
 import { EventForm, type EventFormValues } from '@/components/forms/EventForm';
@@ -343,11 +345,15 @@ export default function EventDetail() {
 
   const { isAdmin, isLeader } = useAuth();
 
-  const [activeTab, setActiveTab] = useState<'invites' | 'leaders'>('invites');
+  const [activeTab, setActiveTab] = useState<'invites' | 'leaders' | 'briefing'>('invites');
   const [showEdit, setShowEdit] = useState(false);
   const [showInviteStaff, setShowInviteStaff] = useState(false);
   const [showBulkInvite, setShowBulkInvite] = useState(false);
+  const [showNearbyPanel, setShowNearbyPanel] = useState(false);
+  const [nearbySelected, setNearbySelected] = useState<Set<number>>(new Set());
+  const [nearbyInitialised, setNearbyInitialised] = useState(false);
   const [showAddLeader, setShowAddLeader] = useState(false);
+  const [showAddSponsor, setShowAddSponsor] = useState(false);
   const [deleteInviteId, setDeleteInviteId] = useState<number | null>(null);
   const [removeLeaderId, setRemoveLeaderId] = useState<number | null>(null);
   const [showDeleteEvent, setShowDeleteEvent] = useState(false);
@@ -369,6 +375,30 @@ export default function EventDetail() {
     query: { enabled: !!eventId, queryKey: getListEventInvitationsQueryKey(eventId) },
   });
 
+  // Briefing data — fetched when the Briefing tab is active (or leader/admin opens the page)
+  const { data: briefing, isLoading: loadingBriefing } = useQuery({
+    queryKey: ['events', eventId, 'briefing'],
+    queryFn: async () => {
+      const res = await fetch(`${import.meta.env.BASE_URL}api/events/${eventId}/briefing`);
+      if (!res.ok) throw new Error('Failed to load briefing');
+      return res.json() as Promise<{
+        attendees: Array<{
+          person: { id: number; name: string; title: string | null; department: string | null; role: string };
+          invitationStatus: string;
+          daysSinceLastTouchpoint: number | null;
+          totalTouchpoints: number;
+        }>;
+        keyPeople: Array<{
+          person: { id: number; name: string; title: string | null; department: string | null; role: string };
+          invitationStatus: string;
+          daysSinceLastTouchpoint: number | null;
+          totalTouchpoints: number;
+        }>;
+      }>;
+    },
+    enabled: !!eventId && (isLeader || isAdmin),
+  });
+
   // Suggestions data — fetched lazily to power the "Invite all nearby" button.
   const { data: meetupSuggestions } = useGetMeetupSuggestions({
     query: { queryKey: getGetMeetupSuggestionsQueryKey() },
@@ -379,6 +409,30 @@ export default function EventDetail() {
     const invitedIds = new Set(invitations?.map((i) => i.personId) ?? []);
     return (match?.suggestedPeople ?? []).some((sp) => !invitedIds.has(sp.person.id));
   }, [meetupSuggestions, eventId, invitations]);
+
+  // Radius-based nearby uninvited — fetched when the panel is open
+  const { data: nearbyData, isLoading: nearbyLoading } = useQuery<{
+    people: Array<{ id: number; name: string; title: string | null; role: string; department: string | null; homeCity: string; homeState: string; distanceMiles: number }>;
+    radiusMiles: number;
+  }>({
+    queryKey: ['events', eventId, 'nearby-uninvited'],
+    queryFn: async () => {
+      const res = await fetch(`${import.meta.env.BASE_URL}api/events/${eventId}/nearby-uninvited`, { credentials: 'include' });
+      if (!res.ok) throw new Error('Failed to load nearby people');
+      return res.json();
+    },
+    enabled: showNearbyPanel && !!eventId,
+    staleTime: 60_000,
+  });
+
+  // Pre-select all nearby when data loads
+  React.useEffect(() => {
+    if (showNearbyPanel && nearbyData && !nearbyInitialised && nearbyData.people.length > 0) {
+      setNearbySelected(new Set(nearbyData.people.map(p => p.id)));
+      setNearbyInitialised(true);
+    }
+    if (!showNearbyPanel) { setNearbyInitialised(false); setNearbySelected(new Set()); }
+  }, [showNearbyPanel, nearbyData, nearbyInitialised]);
 
   const invalidateAll = () => {
     queryClient.invalidateQueries({ queryKey: getGetEventQueryKey(eventId) });
@@ -435,6 +489,27 @@ export default function EventDetail() {
       onError: () => toast({ title: 'Error', description: 'Failed to remove invitation.' }),
     },
   });
+
+  // ── Sponsor add/remove (direct fetch — dedicated junction table endpoints) ──
+  const addSponsor = async (personId: number) => {
+    const res = await fetch(`${import.meta.env.BASE_URL}api/events/${eventId}/sponsors`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ personId }), credentials: 'include',
+    });
+    if (!res.ok) { toast({ title: 'Error', description: 'Failed to add sponsor.' }); return; }
+    invalidateAll();
+    toast({ title: 'Sponsor added' });
+    setShowAddSponsor(false);
+  };
+
+  const removeSponsor = async (personId: number) => {
+    const res = await fetch(`${import.meta.env.BASE_URL}api/events/${eventId}/sponsors/${personId}`, {
+      method: 'DELETE', credentials: 'include',
+    });
+    if (!res.ok) { toast({ title: 'Error', description: 'Failed to remove sponsor.' }); return; }
+    invalidateAll();
+    toast({ title: 'Sponsor removed' });
+  };
 
   const addLeader = useAddEventLeader({
     mutation: {
@@ -581,14 +656,6 @@ export default function EventDetail() {
             </div>
           </div>
           <div className="flex items-start gap-3">
-            <div className="p-2 bg-muted rounded-lg text-muted-foreground"><MapPin className="h-5 w-5" /></div>
-            <div>
-              <div className="text-sm font-medium text-foreground">Location</div>
-              <div className="text-sm text-muted-foreground mt-0.5">{event.location}</div>
-              <div className="text-xs text-muted-foreground">{event.city}, {event.state}</div>
-            </div>
-          </div>
-          <div className="flex items-start gap-3">
             <div className="p-2 bg-muted rounded-lg text-muted-foreground"><Building className="h-5 w-5" /></div>
             <div>
               <div className="text-sm font-medium text-foreground">Attending Leaders</div>
@@ -603,7 +670,115 @@ export default function EventDetail() {
               <div className="text-xs text-green-600 font-medium">{event.attendeeCount ?? 0} attended</div>
             </div>
           </div>
+          {/* Sponsors — multi-person, editable inline */}
+          {(isAdmin || ((event as any).sponsors?.length ?? 0) > 0) && (
+            <div className="flex items-start gap-3">
+              <div className="p-2 bg-muted rounded-lg text-muted-foreground shrink-0"><Star className="h-5 w-5" /></div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="text-sm font-medium text-foreground">Sponsors</div>
+                  {isAdmin && (
+                    <button onClick={() => setShowAddSponsor(true)}
+                      className="text-xs px-1.5 py-0.5 bg-primary/10 text-primary rounded hover:bg-primary/20 font-medium leading-none">
+                      + Add
+                    </button>
+                  )}
+                </div>
+                {((event as any).sponsors ?? []).length === 0 ? (
+                  <div className="text-xs text-muted-foreground italic">No sponsors yet</div>
+                ) : (
+                  <div className="space-y-1.5">
+                    {((event as any).sponsors as Array<{ id: number; name: string; title?: string | null; role: string }>).map(s => (
+                      <div key={s.id} className="flex items-center gap-2 group">
+                        <Link href={`/people/${s.id}`} className="text-sm text-primary hover:underline leading-tight">{s.name}</Link>
+                        {s.title && <span className="text-xs text-muted-foreground">· {s.title}</span>}
+                        {isAdmin && (
+                          <button onClick={() => removeSponsor(s.id)}
+                            className="opacity-0 group-hover:opacity-100 ml-auto text-muted-foreground hover:text-destructive transition-opacity p-0.5 rounded">
+                            <X className="h-3 w-3" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+          {/* Organizer */}
+          {(event as any).organizer && (
+            <div className="flex items-start gap-3">
+              <div className="p-2 bg-muted rounded-lg text-muted-foreground"><User className="h-5 w-5" /></div>
+              <div>
+                <div className="text-sm font-medium text-foreground">Organizer</div>
+                <Link href={`/people/${(event as any).organizer.id}`} className="text-sm text-primary hover:underline mt-0.5 block">
+                  {(event as any).organizer.name}
+                </Link>
+                {(event as any).organizer.title && <div className="text-xs text-muted-foreground">{(event as any).organizer.title}</div>}
+              </div>
+            </div>
+          )}
         </div>
+
+        {/* Venue cards */}
+        {((event as any).venue || !(event as any).venueId) && (
+          <div className="space-y-3 pt-4 border-t border-border">
+            {/* Primary venue */}
+            {(event as any).venue ? (
+              <div className="flex items-start gap-3 bg-muted/30 rounded-xl p-4">
+                <div className="p-2 bg-muted rounded-lg text-muted-foreground shrink-0"><Building2 className="h-5 w-5" /></div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium text-foreground">{(event as any).venue.name}</div>
+                  <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
+                    <MapPin className="h-3 w-3 shrink-0" />
+                    {(event as any).venue.address}, {(event as any).venue.city}, {(event as any).venue.state}
+                    {(event as any).venue.zipCode ? ` ${(event as any).venue.zipCode}` : ''}
+                  </div>
+                  {(event as any).venue.webLink && (
+                    <a href={(event as any).venue.webLink} target="_blank" rel="noreferrer"
+                      className="mt-1 flex items-center gap-1 text-xs text-primary hover:underline">
+                      <ExternalLink className="h-3 w-3" />
+                      {(event as any).venue.webLink.replace(/^https?:\/\//, '').replace(/\/$/, '')}
+                    </a>
+                  )}
+                  {(event as any).venue.notes && <p className="text-xs text-muted-foreground mt-1 italic">{(event as any).venue.notes}</p>}
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-start gap-3">
+                <div className="p-2 bg-muted rounded-lg text-muted-foreground"><MapPin className="h-5 w-5" /></div>
+                <div>
+                  <div className="text-sm font-medium text-foreground">Location</div>
+                  <div className="text-sm text-muted-foreground mt-0.5">{event.location}</div>
+                  <div className="text-xs text-muted-foreground">{event.city}, {event.state}</div>
+                </div>
+              </div>
+            )}
+            {/* Evening venue */}
+            {(event as any).eveningVenue && (
+              <div className="flex items-start gap-3 bg-indigo-50/50 rounded-xl p-4 border border-indigo-100">
+                <div className="p-2 bg-indigo-100 rounded-lg text-indigo-600 shrink-0"><Sunset className="h-5 w-5" /></div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs font-medium text-indigo-600 uppercase tracking-wider mb-0.5">Evening Event</div>
+                  <div className="text-sm font-medium text-foreground">{(event as any).eveningVenue.name}</div>
+                  <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
+                    <MapPin className="h-3 w-3 shrink-0" />
+                    {(event as any).eveningVenue.address}, {(event as any).eveningVenue.city}, {(event as any).eveningVenue.state}
+                    {(event as any).eveningVenue.zipCode ? ` ${(event as any).eveningVenue.zipCode}` : ''}
+                  </div>
+                  {(event as any).eveningVenue.webLink && (
+                    <a href={(event as any).eveningVenue.webLink} target="_blank" rel="noreferrer"
+                      className="mt-1 flex items-center gap-1 text-xs text-primary hover:underline">
+                      <ExternalLink className="h-3 w-3" />
+                      {(event as any).eveningVenue.webLink.replace(/^https?:\/\//, '').replace(/\/$/, '')}
+                    </a>
+                  )}
+                  {(event as any).eveningVenue.notes && <p className="text-xs text-muted-foreground mt-1 italic">{(event as any).eveningVenue.notes}</p>}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Tabs */}
@@ -620,6 +795,18 @@ export default function EventDetail() {
             {tab === 'invites' ? `Staff Invitations (${invitations?.length ?? 0})` : `Attending Leaders (${(leaders as any[])?.length ?? 0})`}
           </button>
         ))}
+        {(isLeader || isAdmin) && (
+          <button
+            onClick={() => setActiveTab('briefing')}
+            className={cn(
+              'pb-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5',
+              activeTab === 'briefing' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
+            )}
+          >
+            <Star className="h-3.5 w-3.5" />
+            Briefing
+          </button>
+        )}
       </div>
 
       {activeTab === 'invites' && (
@@ -645,6 +832,22 @@ export default function EventDetail() {
                     className="text-sm bg-indigo-50 text-indigo-700 hover:bg-indigo-100 font-medium px-3 py-1.5 rounded flex items-center gap-1.5 transition-colors border border-indigo-200"
                   >
                     <UsersRound className="h-4 w-4" /> Invite all nearby
+                  </button>
+                )}
+                {/* Radius-based nearby panel */}
+                {!eventIsPast && (
+                  <button
+                    onClick={() => setShowNearbyPanel(v => !v)}
+                    className={cn(
+                      'text-sm font-medium px-3 py-1.5 rounded flex items-center gap-1.5 transition-colors border',
+                      showNearbyPanel
+                        ? 'bg-primary/10 text-primary border-primary/30'
+                        : 'bg-card text-muted-foreground border-border hover:text-foreground hover:border-foreground/30',
+                    )}
+                  >
+                    <Radar className="h-4 w-4" />
+                    Find Nearby
+                    {showNearbyPanel ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
                   </button>
                 )}
                 <button
@@ -754,6 +957,120 @@ export default function EventDetail() {
             )}
           </div>
 
+          {/* ── Radius-based nearby uninvited panel ────────────────────── */}
+          {showNearbyPanel && isLeader && !eventIsPast && (
+            <div className="bg-card border border-primary/20 rounded-xl shadow-sm overflow-hidden">
+              <div className="px-4 py-3 bg-primary/5 border-b border-primary/10 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Radar className="h-4 w-4 text-primary" />
+                  <span className="text-sm font-semibold text-foreground">
+                    Team members within {nearbyData?.radiusMiles ?? '…'} miles not yet invited
+                  </span>
+                  {nearbyData && (
+                    <span className="text-xs text-muted-foreground">({nearbyData.people.length} found)</span>
+                  )}
+                </div>
+                <button onClick={() => setShowNearbyPanel(false)} className="text-muted-foreground hover:text-foreground p-1 rounded">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              {nearbyLoading ? (
+                <div className="flex items-center justify-center py-8 text-muted-foreground gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Finding nearby team members…
+                </div>
+              ) : !nearbyData || nearbyData.people.length === 0 ? (
+                <div className="py-8 text-center text-sm text-muted-foreground">
+                  No uninvited team members found within the invite radius.
+                  <br />
+                  <span className="text-xs">Adjust the radius in Settings → Configuration.</span>
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-muted/20">
+                    <button
+                      onClick={() => {
+                        if (nearbySelected.size === nearbyData.people.length) setNearbySelected(new Set());
+                        else setNearbySelected(new Set(nearbyData.people.map(p => p.id)));
+                      }}
+                      className="text-xs text-primary hover:underline font-medium flex items-center gap-1"
+                    >
+                      {nearbySelected.size === nearbyData.people.length
+                        ? <><CheckSquare className="h-3.5 w-3.5" /> Deselect all</>
+                        : <><Square className="h-3.5 w-3.5" /> Select all</>}
+                    </button>
+                    <span className="text-xs text-muted-foreground">{nearbySelected.size} selected</span>
+                  </div>
+                  <div className="max-h-72 overflow-y-auto divide-y divide-border">
+                    {nearbyData.people.map(p => {
+                      const roleColors: Record<string, string> = {
+                        executive: 'bg-amber-50 text-amber-700',
+                        secondary_leader: 'bg-violet-50 text-violet-700',
+                        staff: 'bg-sky-50 text-sky-700',
+                      };
+                      const roleLabels: Record<string, string> = {
+                        executive: 'Executive', secondary_leader: 'Leader', staff: 'Staff',
+                      };
+                      return (
+                        <label key={p.id} className="flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-muted/20">
+                          <input
+                            type="checkbox"
+                            checked={nearbySelected.has(p.id)}
+                            onChange={() => setNearbySelected(prev => {
+                              const next = new Set(prev);
+                              if (next.has(p.id)) next.delete(p.id); else next.add(p.id);
+                              return next;
+                            })}
+                            className="accent-primary h-4 w-4 rounded shrink-0"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <Link href={`/people/${p.id}`} className="font-medium text-sm text-foreground hover:underline" onClick={e => e.stopPropagation()}>
+                              {p.name}
+                            </Link>
+                            <div className="text-xs text-muted-foreground truncate">
+                              {p.title ?? 'No title'}{p.department ? ` · ${p.department}` : ''}
+                              {' · '}{p.homeCity}, {p.homeState}
+                            </div>
+                          </div>
+                          <div className="shrink-0 flex flex-col items-end gap-1">
+                            <span className={cn('text-xs font-medium px-2 py-0.5 rounded-full', roleColors[p.role] ?? roleColors.staff)}>
+                              {roleLabels[p.role] ?? 'Staff'}
+                            </span>
+                            <span className="text-xs text-muted-foreground">{p.distanceMiles} mi</span>
+                          </div>
+                        </label>
+                      );
+                    })}
+                  </div>
+                  <div className="px-4 py-3 border-t border-border flex justify-end">
+                    <button
+                      disabled={nearbySelected.size === 0}
+                      onClick={() => {
+                        const ids = Array.from(nearbySelected);
+                        const bulkCreate = (invitations as any)?._bulkCreate;
+                        // use the existing bulkCreate mutation via a direct fetch
+                        fetch(`${import.meta.env.BASE_URL}api/events/${eventId}/invitations/bulk`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          credentials: 'include',
+                          body: JSON.stringify({ personIds: ids, createCalendarEvent: false }),
+                        }).then(r => r.json()).then(data => {
+                          invalidateAll();
+                          queryClient.invalidateQueries({ queryKey: ['events', eventId, 'nearby-uninvited'] });
+                          setShowNearbyPanel(false);
+                          toast({ title: `${data.created ?? ids.length} invitation${(data.created ?? ids.length) !== 1 ? 's' : ''} sent` });
+                        }).catch(() => toast({ title: 'Error', description: 'Failed to send invitations.' }));
+                      }}
+                      className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                    >
+                      Invite {nearbySelected.size > 0 ? nearbySelected.size : ''} team member{nearbySelected.size !== 1 ? 's' : ''}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
           {/* Bulk delete action bar */}
           {isAdmin && selectedInviteIds.size > 0 && (
             <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-card border border-border rounded-xl shadow-xl px-5 py-3 flex items-center gap-4">
@@ -824,6 +1141,117 @@ export default function EventDetail() {
         </div>
       )}
 
+      {/* ── Briefing tab ─────────────────────────────────────────────────────── */}
+      {activeTab === 'briefing' && (isLeader || isAdmin) && (
+        <div className="space-y-8">
+          {loadingBriefing ? (
+            <div className="p-12 text-center text-muted-foreground animate-pulse">Loading briefing…</div>
+          ) : !briefing || briefing.attendees.length === 0 ? (
+            <div className="p-12 text-center bg-card border border-border rounded-xl text-muted-foreground">
+              No invitees yet — add staff to this event to generate a briefing.
+            </div>
+          ) : (
+            <>
+              {/* Key people section */}
+              {briefing.keyPeople.length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Star className="h-4 w-4 text-amber-500" />
+                    <h2 className="text-base font-semibold">Key people to connect with</h2>
+                  </div>
+                  <p className="text-xs text-muted-foreground -mt-1">
+                    Prioritised by engagement gap — those who haven't connected with leadership recently.
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    {briefing.keyPeople.map((item) => (
+                      <div
+                        key={item.person.id}
+                        className="bg-amber-50 border border-amber-200 dark:bg-amber-950/30 dark:border-amber-800 rounded-xl p-4 flex flex-col gap-3"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="h-11 w-11 rounded-full bg-amber-200 dark:bg-amber-800 flex items-center justify-center text-amber-800 dark:text-amber-200 font-bold text-sm shrink-0">
+                            {item.person.name?.split(' ').map((n) => n[0]).join('').substring(0, 2) ?? '?'}
+                          </div>
+                          <div className="min-w-0">
+                            <Link
+                              href={`/people/${item.person.id}`}
+                              className="font-semibold text-sm text-foreground hover:underline truncate block"
+                            >
+                              {item.person.name}
+                            </Link>
+                            <div className="text-xs text-muted-foreground truncate">{item.person.title ?? item.person.department ?? '—'}</div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {item.daysSinceLastTouchpoint === null ? (
+                            <span className="text-xs font-semibold bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400 px-2 py-0.5 rounded-full">
+                              Never met
+                            </span>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">
+                              Last touchpoint <span className="font-semibold text-foreground">{item.daysSinceLastTouchpoint}d ago</span>
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Full attendee list */}
+              <div className="space-y-3">
+                <h2 className="text-base font-semibold">All invitees ({briefing.attendees.length})</h2>
+                <div className="bg-card border border-border rounded-xl divide-y divide-border overflow-hidden">
+                  {briefing.attendees.map((item) => (
+                    <div key={item.person.id} className="flex items-center gap-4 px-4 py-3 hover:bg-muted/40 transition-colors">
+                      {/* Avatar */}
+                      <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-xs shrink-0">
+                        {item.person.name?.split(' ').map((n) => n[0]).join('').substring(0, 2) ?? '?'}
+                      </div>
+
+                      {/* Name & title */}
+                      <div className="flex-1 min-w-0">
+                        <Link
+                          href={`/people/${item.person.id}`}
+                          className="text-sm font-medium text-foreground hover:underline truncate block"
+                        >
+                          {item.person.name}
+                        </Link>
+                        <div className="text-xs text-muted-foreground truncate">
+                          {item.person.title ?? item.person.department ?? '—'}
+                        </div>
+                      </div>
+
+                      {/* Engagement badge */}
+                      <div className="shrink-0 text-right">
+                        {item.daysSinceLastTouchpoint === null ? (
+                          <span className="inline-flex items-center text-xs font-semibold bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400 px-2 py-0.5 rounded-full">
+                            Never met
+                          </span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">
+                            <span className={cn(
+                              'font-semibold',
+                              item.daysSinceLastTouchpoint > 365 ? 'text-orange-600 dark:text-orange-400' :
+                              item.daysSinceLastTouchpoint > 180 ? 'text-yellow-600 dark:text-yellow-400' :
+                              'text-foreground'
+                            )}>
+                              {item.daysSinceLastTouchpoint}d
+                            </span>
+                            {' '}since last touchpoint
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
       {/* ── Modals & Dialogs ─────────────────────────────────────────────────── */}
 
       <EventForm
@@ -831,10 +1259,14 @@ export default function EventDetail() {
         onClose={() => setShowEdit(false)}
         onSubmit={(values) => updateEvent.mutate({
           id: eventId,
-          data: { ...values, state: values.state.toUpperCase(), endDate: values.endDate || undefined } as any,
+          data: {
+            ...values,
+            state:   values.state ? values.state.toUpperCase() : undefined,
+            endDate: values.endDate || undefined,
+          } as any,
         })}
         isPending={updateEvent.isPending}
-        defaultValues={event}
+        defaultValues={event as any}
         mode="edit"
       />
 
@@ -856,6 +1288,15 @@ export default function EventDetail() {
         description="Select an executive or leader attending this event."
         excludeIds={leaderIds}
         multiRole={['executive', 'secondary_leader']}
+      />
+
+      <PersonPicker
+        open={showAddSponsor}
+        onClose={() => setShowAddSponsor(false)}
+        onSelect={(person) => addSponsor(person.id)}
+        title="Add Sponsor"
+        description="Select someone sponsoring or championing this event."
+        excludeIds={((event as any).sponsors ?? []).map((s: { id: number }) => s.id)}
       />
 
       <BulkInviteModal

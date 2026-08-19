@@ -1,0 +1,1 @@
+- [Event sponsors architecture](event-sponsors-architecture.md) — sponsors use a junction table (multi-sponsor); organizer stays a single FK; edit form covers organizer+venues but not sponsors (inline add/remove on detail page)

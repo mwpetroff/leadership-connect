@@ -24,7 +24,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Settings, Shield, ChevronDown, ChevronRight, AlertCircle, Building2, Pencil, Trash2, Plus, X, Check, Upload, FileText, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { Settings, Shield, ChevronDown, ChevronRight, AlertCircle, Building2, Pencil, Trash2, Plus, X, Check, Upload, FileText, CheckCircle2, AlertTriangle, Download } from 'lucide-react';
 import { formatDistanceToNow, parseISO } from 'date-fns';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -205,17 +205,20 @@ function EngagementRulesSection({ settings }: { settings: Setting[] }) {
 
   const [threshold, setThreshold] = useState(get('touchpoint_threshold_days'));
   const [radius, setRadius] = useState(get('suggestion_radius'));
+  const [inviteRadius, setInviteRadius] = useState(get('invite_radius_miles') || '50');
   const [isDirty, setIsDirty] = useState(false);
 
   // Sync when settings load
   const thresholdFromProps = get('touchpoint_threshold_days');
   const radiusFromProps = get('suggestion_radius');
+  const inviteRadiusFromProps = get('invite_radius_miles') || '50';
 
   const save = useMutation({
     mutationFn: async () => {
       await Promise.all([
         patchSetting('touchpoint_threshold_days', threshold),
         patchSetting('suggestion_radius', radius),
+        patchSetting('invite_radius_miles', inviteRadius),
       ]);
     },
     onSuccess: () => {
@@ -251,6 +254,25 @@ function EngagementRulesSection({ settings }: { settings: Setting[] }) {
           <p className="text-xs text-muted-foreground">
             Staff with no touchpoint in this many days are flagged on the dashboard and suggestions hub.
             Currently: <strong>{thresholdFromProps} days</strong>.
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="inviteRadius">Event invite radius (miles)</Label>
+          <div className="flex items-center gap-3 max-w-xs">
+            <Input
+              id="inviteRadius"
+              type="number"
+              min={1}
+              max={2000}
+              value={inviteRadius}
+              onChange={(e) => { setInviteRadius(e.target.value); setIsDirty(true); }}
+            />
+            <span className="text-sm text-muted-foreground">miles</span>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Used in the event creation wizard and the "Find Nearby" panel when editing events to suggest uninvited team members.
+            Currently: <strong>{inviteRadiusFromProps} miles</strong>.
           </p>
         </div>
 
@@ -729,6 +751,18 @@ function downloadTemplate() {
   URL.revokeObjectURL(url);
 }
 
+async function downloadExport() {
+  const res = await fetch(`${BASE}api/people/export`, { credentials: 'include' });
+  if (!res.ok) throw new Error('Export failed');
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'people-export.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 async function postImport(csv: string): Promise<ImportResult> {
   const res = await fetch(`${BASE}api/people/import`, {
     method: 'POST',
@@ -748,6 +782,18 @@ function ImportPeopleSection() {
   const [file, setFile] = useState<File | null>(null);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
+
+  async function handleExport() {
+    setExporting(true);
+    try {
+      await downloadExport();
+    } catch {
+      toast({ title: 'Export failed', description: 'Could not download the CSV. Please try again.' });
+    } finally {
+      setExporting(false);
+    }
+  }
 
   const importMutation = useMutation({
     mutationFn: async (csvText: string) => postImport(csvText),
@@ -784,13 +830,27 @@ function ImportPeopleSection() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base flex items-center gap-2">
-          <Upload className="h-4 w-4 text-primary" />
-          Import People
-        </CardTitle>
-        <CardDescription>
-          Upload a CSV exported from Workday, BambooHR, or any HRIS. Duplicate emails are updated, not rejected.
-        </CardDescription>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Upload className="h-4 w-4 text-primary" />
+              Import People
+            </CardTitle>
+            <CardDescription className="mt-1">
+              Upload a CSV exported from Workday, BambooHR, or any HRIS. Duplicate emails are updated, not rejected.
+            </CardDescription>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExport}
+            disabled={exporting}
+            className="shrink-0 gap-1.5"
+          >
+            <Download className="h-3.5 w-3.5" />
+            {exporting ? 'Exporting…' : 'Download CSV'}
+          </Button>
+        </div>
       </CardHeader>
       <CardContent className="space-y-5">
         {/* Template download */}

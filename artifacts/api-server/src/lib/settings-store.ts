@@ -10,6 +10,7 @@ import { eq } from "drizzle-orm";
 export const DEFAULTS: Record<string, string> = {
   touchpoint_threshold_days: "90",
   suggestion_radius: "state",
+  invite_radius_miles: "50",
   org_name: "Leadership Connect",
 };
 

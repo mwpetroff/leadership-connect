@@ -1,17 +1,21 @@
 import React, { useState } from 'react';
 import { Link } from 'wouter';
-import { useListEvents, useCreateEvent, getListEventsQueryKey } from '@workspace/api-client-react';
+import {
+  useListEvents, useCreateEvent, useAddEventLeader, useBulkCreateInvitations,
+  getListEventsQueryKey,
+} from '@workspace/api-client-react';
 import { Calendar, MapPin, Plus } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/components/ui/use-toast';
-import { EventForm, type EventFormValues } from '@/components/forms/EventForm';
+import { EventWizard, type WizardResult } from '@/components/forms/EventWizard';
 import { useAuth } from '@/lib/auth';
 
 export default function EventsList() {
   const [filterUpcoming, setFilterUpcoming] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
+  const [wizardPending, setWizardPending] = useState(false);
   const { isAdmin } = useAuth();
 
   const queryClient = useQueryClient();
@@ -22,30 +26,64 @@ export default function EventsList() {
     { query: { keepPreviousData: true } as any }
   );
 
-  const createEvent = useCreateEvent({
-    mutation: {
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: getListEventsQueryKey() });
-        setShowCreate(false);
-        toast({ title: 'Event created', description: 'New event added to the calendar.' });
-      },
-      onError: () => toast({ title: 'Error', description: 'Failed to create event.' }),
-    },
-  });
+  const createEvent = useCreateEvent({ mutation: {} });
+  const addLeader = useAddEventLeader({ mutation: {} });
+  const bulkInvite = useBulkCreateInvitations({ mutation: {} });
 
-  const handleCreate = (values: EventFormValues) => {
-    createEvent.mutate({
-      data: {
-        name: values.name,
-        description: values.description || undefined,
-        location: values.location || undefined,
-        city: values.city,
-        state: values.state.toUpperCase(),
-        startDate: values.startDate,
-        endDate: values.endDate || undefined,
-        eventType: values.eventType,
-      } as any,
-    });
+  /** Wizard finish — create event then add leaders + bulk-invite in parallel */
+  const handleWizardComplete = async (result: WizardResult) => {
+    setWizardPending(true);
+    try {
+      const { leaderIds, requiredAttendeeIds, nearbyInviteIds } = result;
+      const created = await createEvent.mutateAsync({
+        data: {
+          name:           result.name,
+          description:    result.description || undefined,
+          location:       result.location,
+          city:           result.city,
+          state:          result.state,
+          startDate:      result.startDate,
+          endDate:        result.endDate || undefined,
+          eventType:      result.eventType,
+          venueId:        result.venueId,
+          eveningVenueId: result.eveningVenueId,
+          sponsorIds:     result.sponsorIds,
+          organizerId:    result.organizerId,
+        } as any,
+      });
+      const eventId = (created as any).id as number;
+
+      // Add leaders + invite attendees concurrently
+      await Promise.all([
+        ...leaderIds.map(pid =>
+          addLeader.mutateAsync({ eventId, personId: pid }).catch(() => null)
+        ),
+        ...(requiredAttendeeIds.length + nearbyInviteIds.length > 0 ? [
+          bulkInvite.mutateAsync({
+            id: eventId,
+            data: {
+              personIds: [...new Set([...requiredAttendeeIds, ...nearbyInviteIds])],
+              createCalendarEvent: false,
+            },
+          }).catch(() => null),
+        ] : []),
+      ]);
+
+      queryClient.invalidateQueries({ queryKey: getListEventsQueryKey() });
+      setShowCreate(false);
+      const inviteCount = new Set([...requiredAttendeeIds, ...nearbyInviteIds]).size;
+      toast({
+        title: 'Event created',
+        description: [
+          leaderIds.length > 0 && `${leaderIds.length} leader${leaderIds.length !== 1 ? 's' : ''} added`,
+          inviteCount > 0 && `${inviteCount} invitation${inviteCount !== 1 ? 's' : ''} sent`,
+        ].filter(Boolean).join(' · ') || 'New event added to the calendar.',
+      });
+    } catch {
+      toast({ title: 'Error', description: 'Failed to create event. Please try again.' });
+    } finally {
+      setWizardPending(false);
+    }
   };
 
   return (
@@ -140,12 +178,11 @@ export default function EventsList() {
         </div>
       )}
 
-      <EventForm
+      <EventWizard
         open={showCreate}
         onClose={() => setShowCreate(false)}
-        onSubmit={handleCreate}
-        isPending={createEvent.isPending}
-        mode="create"
+        onComplete={handleWizardComplete}
+        isPending={wizardPending}
       />
     </div>
   );

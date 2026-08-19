@@ -1,6 +1,6 @@
 import { Router, type IRouter, type RequestHandler } from "express";
 import express from "express";
-import { eq, ilike, or, and, desc, inArray, sql } from "drizzle-orm";
+import { eq, ilike, or, and, desc, inArray, sql, isNotNull } from "drizzle-orm";
 import { db, peopleTable, invitationsTable, virtualMeetingParticipantsTable, virtualMeetingsTable, eventsTable } from "@workspace/db";
 import {
   ListPeopleQueryParams,
@@ -13,6 +13,8 @@ import {
 } from "@workspace/api-zod";
 import { logAudit } from "../lib/audit";
 import { geocodeCity } from "../lib/geocoding";
+import { haversineMiles } from "../lib/geo";
+import { getSetting } from "../lib/settings-store";
 
 // ── CSV helpers ────────────────────────────────────────────────────────────────
 
@@ -163,6 +165,56 @@ router.post("/people", async (req, res): Promise<void> => {
     .returning();
   logAudit(req, "create", "person", person.id, null, person);
   res.status(201).json(person);
+});
+
+// ── GET /people/export ────────────────────────────────────────────────────────
+// Streams the full people table as a CSV.  Must be registered before
+// GET /people/:id so Express doesn't swallow "export" as a route param.
+
+router.get("/people/export", async (req, res): Promise<void> => {
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", 'attachment; filename="people-export.csv"');
+  res.setHeader("Cache-Control", "no-store");
+
+  const HEADERS = ["name", "email", "role", "title", "department", "homeCity", "homeState"];
+
+  function escapeField(value: string | null | undefined): string {
+    const s = value ?? "";
+    if (s.includes(",") || s.includes('"') || s.includes("\n") || s.includes("\r")) {
+      return `"${s.replace(/"/g, '""')}"`;
+    }
+    return s;
+  }
+
+  res.write(HEADERS.join(",") + "\n");
+
+  const rows = await db
+    .select({
+      name: peopleTable.name,
+      email: peopleTable.email,
+      role: peopleTable.role,
+      title: peopleTable.title,
+      department: peopleTable.department,
+      homeCity: peopleTable.homeCity,
+      homeState: peopleTable.homeState,
+    })
+    .from(peopleTable)
+    .orderBy(peopleTable.name);
+
+  for (const row of rows) {
+    const line = [
+      escapeField(row.name),
+      escapeField(row.email),
+      escapeField(row.role),
+      escapeField(row.title),
+      escapeField(row.department),
+      escapeField(row.homeCity),
+      escapeField(row.homeState),
+    ].join(",");
+    res.write(line + "\n");
+  }
+
+  res.end();
 });
 
 router.get("/people/:id", async (req, res): Promise<void> => {
@@ -527,6 +579,64 @@ router.get("/people/:id/engagement", async (req, res): Promise<void> => {
     totalInPersonAttended,
     totalVirtualCompleted,
   });
+});
+
+// ── GET /people/nearby ─────────────────────────────────────────────────────────
+// Returns people within invite_radius_miles of a geocoded city/state.
+// Query params: city (required), state (required), excludeIds (optional CSV)
+
+router.get("/people/nearby", async (req, res): Promise<void> => {
+  const city = (req.query.city as string | undefined)?.trim();
+  const state = (req.query.state as string | undefined)?.trim().toUpperCase();
+
+  if (!city || !state) {
+    res.status(400).json({ error: "city and state query params are required" });
+    return;
+  }
+
+  const radiusMiles = parseInt(
+    ((req.query.radiusMiles as string | undefined) ?? await getSetting("invite_radius_miles")) || "50",
+    10,
+  );
+
+  const excludeParam = (req.query.excludeIds as string | undefined) ?? "";
+  const excludeIds = excludeParam
+    ? excludeParam.split(",").map(Number).filter(Number.isFinite)
+    : [];
+
+  // Geocode the requested location
+  const coords = await geocodeCity(city, state);
+  if (!coords) {
+    res.json({ people: [], radiusMiles, geocodedLat: null, geocodedLng: null });
+    return;
+  }
+
+  // Fetch all people that have coordinates
+  const allPeople = await db
+    .select()
+    .from(peopleTable)
+    .where(isNotNull(peopleTable.lat));
+
+  const nearby = allPeople
+    .filter((p) => {
+      if (excludeIds.includes(p.id)) return false;
+      if (p.lat == null || p.lng == null) return false;
+      return haversineMiles(coords.lat, coords.lng, p.lat, p.lng) <= radiusMiles;
+    })
+    .map((p) => ({
+      id: p.id,
+      name: p.name,
+      email: p.email,
+      title: p.title,
+      role: p.role,
+      department: p.department,
+      homeCity: p.homeCity,
+      homeState: p.homeState,
+      distanceMiles: Math.round(haversineMiles(coords.lat, coords.lng, p.lat!, p.lng!) * 10) / 10,
+    }))
+    .sort((a, b) => a.distanceMiles - b.distanceMiles);
+
+  res.json({ people: nearby, radiusMiles, geocodedLat: coords.lat, geocodedLng: coords.lng });
 });
 
 export default router;

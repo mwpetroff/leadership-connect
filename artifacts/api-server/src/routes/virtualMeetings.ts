@@ -24,6 +24,7 @@ import {
   getGraphAccessToken,
   createTeamsMeeting,
   cancelTeamsMeeting,
+  updateTeamsMeeting,
 } from "../lib/graph";
 
 const router: IRouter = Router();
@@ -243,6 +244,35 @@ router.patch("/virtual-meetings/:id", async (req, res): Promise<void> => {
         meeting.teamsJoinUrl = teamsData.teamsJoinUrl;
         meeting.graphMeetingId = teamsData.graphMeetingId;
       }
+    }
+  } else if (
+    current.status === "scheduled" &&
+    (!newStatus || newStatus === "scheduled") &&
+    scheduledDate !== undefined &&
+    meeting.scheduledDate !== current.scheduledDate &&
+    meeting.graphMeetingId
+  ) {
+    // The meeting stays scheduled but the date changed — update the existing
+    // Teams meeting so participants' calendars reflect the new time.
+    // This is best-effort: the PATCH succeeds even if Graph is unavailable.
+    try {
+      const token = await getGraphAccessToken(req);
+      if (token) {
+        const newDateStr = meeting.scheduledDate ?? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+        const updated = await updateTeamsMeeting(token, meeting.graphMeetingId, {
+          startDateTime: `${newDateStr}T10:00:00Z`,
+          endDateTime: `${newDateStr}T11:00:00Z`,
+        });
+        if (!updated) {
+          console.warn(
+            "[virtualMeetings] Non-fatal: Teams meeting time update failed for meeting",
+            meeting.id,
+            "— join URL preserved, calendar may show old date",
+          );
+        }
+      }
+    } catch (err) {
+      console.warn("[virtualMeetings] Non-fatal Teams reschedule error:", String(err));
     }
   } else if (newStatus === "cancelled" && current.status !== "cancelled") {
     // Cancel the Graph meeting (best-effort) then clear the persisted IDs so

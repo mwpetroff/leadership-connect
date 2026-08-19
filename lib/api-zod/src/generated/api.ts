@@ -277,12 +277,34 @@ export const ListEventsResponse = zod.array(ListEventsResponseItem)
 export const CreateEventBody = zod.object({
   "name": zod.string().min(1),
   "description": zod.string().optional(),
-  "location": zod.string().min(1),
-  "city": zod.string().min(1),
-  "state": zod.string().min(1),
+  "location": zod.string().optional(),
+  "city": zod.string().optional(),
+  "state": zod.string().optional(),
   "startDate": zod.coerce.date(),
   "endDate": zod.coerce.date().optional(),
-  "eventType": zod.enum(['summit', 'conference', 'marketing', 'leadership', 'regional', 'other'])
+  "eventType": zod.enum(['summit', 'conference', 'marketing', 'leadership', 'regional', 'other']),
+  "venueId": zod.number().int().optional(),
+  "eveningVenueId": zod.number().int().optional(),
+  "sponsorIds": zod.array(zod.number().int()).optional(),
+  "organizerId": zod.number().int().optional()
+})
+
+const VenueSummary = zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "address": zod.string(),
+  "city": zod.string(),
+  "state": zod.string(),
+  "zipCode": zod.string().nullish(),
+  "webLink": zod.string().nullish(),
+  "notes": zod.string().nullish()
+}).optional()
+
+const PersonSummary = zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "title": zod.string().nullish(),
+  "role": zod.string()
 })
 
 export const CreateEventResponse = zod.object({
@@ -295,6 +317,13 @@ export const CreateEventResponse = zod.object({
   "startDate": zod.coerce.date(),
   "endDate": zod.coerce.date().nullish(),
   "eventType": zod.enum(['summit', 'conference', 'marketing', 'leadership', 'regional', 'other']),
+  "venueId": zod.number().int().nullish(),
+  "eveningVenueId": zod.number().int().nullish(),
+  "organizerId": zod.number().int().nullish(),
+  "venue": VenueSummary.optional(),
+  "eveningVenue": VenueSummary.optional(),
+  "sponsors": zod.array(PersonSummary).optional(),
+  "organizer": PersonSummary.optional(),
   "leaderCount": zod.number().int().optional(),
   "inviteeCount": zod.number().int().optional(),
   "attendeeCount": zod.number().int().optional(),
@@ -319,6 +348,13 @@ export const GetEventResponse = zod.object({
   "startDate": zod.coerce.date(),
   "endDate": zod.coerce.date().nullish(),
   "eventType": zod.enum(['summit', 'conference', 'marketing', 'leadership', 'regional', 'other']),
+  "venueId": zod.number().int().nullish(),
+  "eveningVenueId": zod.number().int().nullish(),
+  "organizerId": zod.number().int().nullish(),
+  "venue": VenueSummary.optional(),
+  "eveningVenue": VenueSummary.optional(),
+  "sponsors": zod.array(PersonSummary).optional(),
+  "organizer": PersonSummary.optional(),
   "leaderCount": zod.number().int().optional(),
   "inviteeCount": zod.number().int().optional(),
   "attendeeCount": zod.number().int().optional(),
@@ -344,7 +380,10 @@ export const UpdateEventBody = zod.object({
   "state": zod.string().optional(),
   "startDate": zod.coerce.date().optional(),
   "endDate": zod.coerce.date().optional(),
-  "eventType": zod.enum(['summit', 'conference', 'marketing', 'leadership', 'regional', 'other']).optional()
+  "eventType": zod.enum(['summit', 'conference', 'marketing', 'leadership', 'regional', 'other']).optional(),
+  "venueId": zod.number().int().nullish(),
+  "eveningVenueId": zod.number().int().nullish(),
+  "organizerId": zod.number().int().nullish()
 })
 
 export const UpdateEventResponse = zod.object({
@@ -357,10 +396,32 @@ export const UpdateEventResponse = zod.object({
   "startDate": zod.coerce.date(),
   "endDate": zod.coerce.date().nullish(),
   "eventType": zod.enum(['summit', 'conference', 'marketing', 'leadership', 'regional', 'other']),
+  "venueId": zod.number().int().nullish(),
+  "eveningVenueId": zod.number().int().nullish(),
+  "organizerId": zod.number().int().nullish(),
+  "venue": VenueSummary.optional(),
+  "eveningVenue": VenueSummary.optional(),
+  "sponsors": zod.array(PersonSummary).optional(),
+  "organizer": PersonSummary.optional(),
   "leaderCount": zod.number().int().optional(),
   "inviteeCount": zod.number().int().optional(),
   "attendeeCount": zod.number().int().optional(),
   "createdAt": zod.coerce.date()
+})
+
+// ── Event sponsor endpoints ─────────────────────────────────────────────────
+
+export const AddEventSponsorParams = zod.object({
+  "eventId": zod.coerce.number().int()
+})
+
+export const AddEventSponsorBody = zod.object({
+  "personId": zod.number().int()
+})
+
+export const RemoveEventSponsorParams = zod.object({
+  "eventId": zod.coerce.number().int(),
+  "personId": zod.coerce.number().int()
 })
 
 

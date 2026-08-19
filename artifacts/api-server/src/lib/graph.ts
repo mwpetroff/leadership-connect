@@ -229,6 +229,51 @@ export async function createTeamsMeeting(
   }
 }
 
+export interface TeamsMeetingUpdateDetails {
+  /** ISO-8601 date-time string in UTC */
+  startDateTime: string;
+  /** ISO-8601 date-time string in UTC */
+  endDateTime: string;
+}
+
+/**
+ * Update the start/end time of an existing Teams online meeting via PATCH.
+ * The join URL is unaffected — participants keep the same link.
+ * Returns true on success, false on failure (fails silently with a warning).
+ */
+export async function updateTeamsMeeting(
+  token: string,
+  meetingId: string,
+  details: TeamsMeetingUpdateDetails,
+): Promise<boolean> {
+  try {
+    const response = await graphFetch(
+      token,
+      `/me/onlineMeetings/${encodeURIComponent(meetingId)}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          startDateTime: details.startDateTime,
+          endDateTime: details.endDateTime,
+        }),
+      },
+    );
+
+    if (!response.ok) {
+      const text = await response.text().catch(() => "");
+      console.warn(
+        `[graph] Failed to update Teams meeting ${meetingId}: ${response.status} ${text}`,
+      );
+      return false;
+    }
+
+    return true;
+  } catch (err) {
+    console.warn("[graph] Error updating Teams meeting:", String(err));
+    return false;
+  }
+}
+
 /**
  * Delete/cancel a Teams online meeting.
  * Fails silently — the virtual meeting record is not rolled back.

@@ -49,6 +49,7 @@ vi.mock('@workspace/db', () => ({
   db: mockDb,
   eventsTable: { id: 'id', startDate: 'startDate', eventType: 'eventType' },
   eventLeadersTable: { eventId: 'eventId', personId: 'personId' },
+  eventSponsorsTable: { eventId: 'eventId', personId: 'personId', addedAt: 'addedAt' },
   invitationsTable: { eventId: 'eventId', personId: 'personId', status: 'status' },
   peopleTable: {},
   settingsTable: { key: 'key', value: 'value' },
@@ -63,12 +64,14 @@ beforeEach(() => { vi.resetAllMocks(); });
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-// GET /api/events/:id calls eventWithCounts which makes 2 extra selects (leaders + invitations)
+// GET /api/events/:id calls eventWithCounts which makes 3 extra selects
+// (leaders, invitations, and sponsors).
 function mockEventSelectSequence(eventResult: unknown[] = [mockEvent]) {
   mockDb.select
     .mockReturnValueOnce(makeChain(eventResult))  // main event query
     .mockReturnValueOnce(makeChain([]))            // leaders count
-    .mockReturnValueOnce(makeChain([]));           // invitations count
+    .mockReturnValueOnce(makeChain([]))            // invitations count
+    .mockReturnValueOnce(makeChain([]));           // sponsors
 }
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
@@ -78,7 +81,8 @@ describe('GET /api/events', () => {
     mockDb.select
       .mockReturnValueOnce(makeChain([mockEvent])) // list
       .mockReturnValueOnce(makeChain([]))           // eventWithCounts leaders
-      .mockReturnValueOnce(makeChain([]));          // eventWithCounts invitations
+      .mockReturnValueOnce(makeChain([]))           // eventWithCounts invitations
+      .mockReturnValueOnce(makeChain([]));          // eventWithCounts sponsors
     const res = await request(app).get('/api/events');
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
@@ -106,7 +110,8 @@ describe('POST /api/events', () => {
     mockDb.insert.mockReturnValue(makeChain([mockEvent]));
     mockDb.select
       .mockReturnValueOnce(makeChain([]))   // leaders
-      .mockReturnValueOnce(makeChain([])); // invitations
+      .mockReturnValueOnce(makeChain([]))   // invitations
+      .mockReturnValueOnce(makeChain([]));  // sponsors
   });
 
   it('returns 201 with created event', async () => {
@@ -153,7 +158,8 @@ describe('PATCH /api/events/:id', () => {
     mockDb.select
       .mockReturnValueOnce(makeChain([mockEvent])) // before-state read (audit log)
       .mockReturnValueOnce(makeChain([]))          // leaders (eventWithCounts)
-      .mockReturnValueOnce(makeChain([]));         // invitations (eventWithCounts)
+      .mockReturnValueOnce(makeChain([]))          // invitations (eventWithCounts)
+      .mockReturnValueOnce(makeChain([]));         // sponsors (eventWithCounts)
     const res = await request(app).patch('/api/events/1').send({ name: 'Updated Summit' });
     expect(res.status).toBe(200);
   });
