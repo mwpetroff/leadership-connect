@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { ActivityItem } from './activityItem';
+import type { DashboardCoverage } from './dashboardCoverage';
 import type { Person } from './person';
 import type { RoleEngagement } from './roleEngagement';
 
@@ -20,4 +21,5 @@ export interface DashboardSummary {
   recentActivity: ActivityItem[];
   engagementByRole: RoleEngagement[];
   needsTouchpoint: Person[];
+  coverage?: DashboardCoverage;
 }

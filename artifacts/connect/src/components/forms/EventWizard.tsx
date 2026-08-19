@@ -9,6 +9,7 @@ import {
   Building2, Star, User,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import type { EventInput, Person } from '@workspace/api-client-react';
 import { PersonPicker } from './PersonPicker';
 import { VenuePicker, type VenueOption } from './VenuePicker';
 
@@ -23,7 +24,7 @@ export interface WizardResult {
   description?: string;
   startDate: string;
   endDate?: string;
-  eventType: string;
+  eventType: EventInput['eventType'];
   /** Multiple sponsors — stored in event_sponsors junction table */
   sponsorIds?: number[];
   organizerId?: number;
@@ -134,7 +135,7 @@ function SinglePersonPill({ person, onRemove, label }: { person: PickedPerson | 
 function AddPersonRow({ label, description, people, onAdd, onRemove, roleFilter, excludeIds = [] }: {
   label: string; description: string; people: PickedPerson[];
   onAdd: (p: PickedPerson) => void; onRemove: (id: number) => void;
-  roleFilter?: string; excludeIds?: number[];
+  roleFilter?: Person['role']; excludeIds?: number[];
 }) {
   const [showPicker, setShowPicker] = useState(false);
   return (
@@ -150,9 +151,9 @@ function AddPersonRow({ label, description, people, onAdd, onRemove, roleFilter,
         </button>
       </div>
       <PersonPills people={people} onRemove={onRemove} />
-      <PersonPicker open={showPicker} onClose={() => setShowPicker(false)} onSelect={p => onAdd(p as PickedPerson)}
+      <PersonPicker open={showPicker} onClose={() => setShowPicker(false)} onSelect={p => onAdd(p)}
         title={`Add ${label}`} description={description}
-        excludeIds={[...excludeIds, ...people.map(p => p.id)]} roleFilter={roleFilter as any} />
+        excludeIds={[...excludeIds, ...people.map(p => p.id)]} roleFilter={roleFilter} />
     </div>
   );
 }
@@ -173,7 +174,7 @@ export function EventWizard({ open, onClose, onComplete, isPending }: Props) {
   const [description, setDesc]    = useState('');
   const [startDate, setStart]     = useState('');
   const [endDate, setEnd]         = useState('');
-  const [eventType, setType]      = useState<string>('summit');
+  const [eventType, setType]      = useState<EventInput['eventType']>('summit');
   const [sponsors, setSponsors]   = useState<PickedPerson[]>([]);
   const [organizer, setOrganizer] = useState<PickedPerson | null>(null);
   const [showOrganizerPicker, setShowOrganizerPicker] = useState(false);
@@ -306,7 +307,7 @@ export function EventWizard({ open, onClose, onComplete, isPending }: Props) {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className={L}>Event Type *</label>
-                <select value={eventType} onChange={e => setType(e.target.value)} className={F}>
+                <select value={eventType} onChange={e => setType(e.target.value as EventInput['eventType'])} className={F}>
                   <option value="summit">Summit</option>
                   <option value="conference">Conference</option>
                   <option value="marketing">Marketing</option>

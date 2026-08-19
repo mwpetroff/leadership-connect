@@ -1,35 +1,8 @@
 import React from 'react';
 import { Link } from 'wouter';
-import { useQuery } from '@tanstack/react-query';
 import { Users, Video, AlertCircle, ArrowRight, Calendar } from 'lucide-react';
-import { useScope } from '@/lib/scope';
-
-interface Gap {
-  kind: string;
-  label: string;
-  daysSince: number | null;
-  thresholdDays: number;
-  overdue: boolean;
-  notApplicable: boolean;
-}
-
-interface CoveragePersonRow {
-  person: { id: number; name: string; title: string | null; homeCity: string } | null;
-  overdueCount: number;
-  gaps: Gap[];
-}
-
-interface Summary {
-  totalPeople: number;
-  upcomingEvents: number;
-  totalEvents: number;
-  staffNeedingTouchpoint: number;
-  coverage?: {
-    counts: Record<string, number>;
-    labels: Record<string, string>;
-    people: CoveragePersonRow[];
-  };
-}
+import { useScope, scopeToListParams } from '@/lib/scope';
+import { useGetDashboardSummary } from '@workspace/api-client-react';
 
 const CLOCKS: { key: string; label: string; color: string }[] = [
   { key: 'hrbp_1on1', label: 'HRBP 1:1', color: 'text-violet-600' },
@@ -39,15 +12,8 @@ const CLOCKS: { key: string; label: string; color: string }[] = [
 ];
 
 export default function Dashboard() {
-  const { queryString } = useScope();
-  const { data: summary, isLoading } = useQuery<Summary>({
-    queryKey: ['dashboard', queryString],
-    queryFn: async () => {
-      const res = await fetch(`${import.meta.env.BASE_URL}api/dashboard/summary?${queryString}`, { credentials: 'include' });
-      if (!res.ok) throw new Error('Failed to load dashboard');
-      return res.json();
-    },
-  });
+  const { scope } = useScope();
+  const { data: summary, isLoading } = useGetDashboardSummary(scopeToListParams(scope));
 
   if (isLoading || !summary) {
     return (
@@ -130,7 +96,7 @@ export default function Dashboard() {
                 <div className="flex flex-wrap gap-1.5 mt-2">
                   {row.gaps.filter((g) => g.overdue).map((g) => (
                     <span key={g.kind} className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">
-                      {g.label}
+                      {g.label ?? g.kind.replace(/_/g, ' ')}
                       {g.daysSince == null ? ' · never' : ` · ${g.daysSince}d`}
                     </span>
                   ))}

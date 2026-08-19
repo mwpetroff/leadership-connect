@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { PersonRole } from './personRole';
+import type { PersonStatus } from './personStatus';
 
 export interface Person {
   id: number;
@@ -13,11 +14,26 @@ export interface Person {
   email: string;
   /** @nullable */
   title?: string | null;
-  /** @nullable */
+  /**
+     * Department display name (derived from departmentId)
+     * @nullable
+     */
   department?: string | null;
+  /** @nullable */
+  departmentId?: number | null;
+  /** @nullable */
+  hrbpId?: number | null;
+  /** @nullable */
+  hrbpName?: string | null;
+  /** @nullable */
+  managerName?: string | null;
+  isHrbp?: boolean;
+  status?: PersonStatus;
   role: PersonRole;
   homeCity: string;
   homeState: string;
+  /** @nullable */
+  managerId?: number | null;
   /** @nullable */
   notes?: string | null;
   createdAt: Date;

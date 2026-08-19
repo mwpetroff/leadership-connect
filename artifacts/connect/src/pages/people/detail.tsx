@@ -41,10 +41,10 @@ export default function PersonDetail() {
 
   // Manager + direct reports
   const { data: allPeople } = useListPeople({}, {
-    query: { enabled: !!person, staleTime: 60_000 } as any,
+    query: { enabled: !!person, staleTime: 60_000, queryKey: getListPeopleQueryKey() },
   });
-  const manager = allPeople?.find(p => p.id === (person as any)?.managerId) ?? null;
-  const directReports = allPeople?.filter(p => (p as any).managerId === personId) ?? [];
+  const manager = allPeople?.find(p => p.id === person?.managerId) ?? null;
+  const directReports = allPeople?.filter(p => p.managerId === personId) ?? [];
   const { data: engagement, isLoading: loadingEngagement } = useGetPersonEngagement(personId, {
     query: { enabled: !!personId, queryKey: getGetPersonEngagementQueryKey(personId) },
   });
@@ -85,9 +85,10 @@ export default function PersonDetail() {
           status: 'completed',
           hostId: values.hostId ? parseInt(values.hostId) : undefined,
           notes: values.notes || undefined,
-        } as any,
+          meetingKind: values.meetingKind,
+        },
       });
-      await addParticipant.mutateAsync({ id: (meeting as any).id, data: { personId } });
+      await addParticipant.mutateAsync({ id: meeting.id, data: { personId } });
       queryClient.invalidateQueries({ queryKey: getGetPersonEngagementQueryKey(personId) });
       queryClient.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
       setShowTouchpoint(false);
@@ -339,7 +340,7 @@ export default function PersonDetail() {
       <PersonForm
         open={showEdit}
         onClose={() => setShowEdit(false)}
-        onSubmit={(values) => updatePerson.mutate({ id: personId, data: values as any })}
+        onSubmit={(values) => updatePerson.mutate({ id: personId, data: values })}
         isPending={updatePerson.isPending}
         defaultValues={person}
         mode="edit"

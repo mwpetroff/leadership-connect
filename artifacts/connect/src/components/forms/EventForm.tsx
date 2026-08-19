@@ -6,7 +6,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
 import { User, Building2, MapPin, Sunset, ExternalLink, X } from 'lucide-react';
-import type { Event } from '@workspace/api-client-react';
+import type { Event, EventPersonSummary } from '@workspace/api-client-react';
 import { PersonPicker } from './PersonPicker';
 import { VenuePicker, type VenueOption } from './VenuePicker';
 
@@ -35,16 +35,7 @@ export type EventFormValues = BaseValues & {
 // ── Enriched default shape (what the API returns for a single event) ──────────
 
 interface RichPerson { id: number; name: string; title?: string | null; role: string; }
-interface RichVenue  {
-  id: number; name: string; address: string;
-  city: string; state: string; zipCode?: string | null;
-  webLink?: string | null; notes?: string | null;
-}
-type RichEvent = Partial<Event> & {
-  organizer?: RichPerson | null;
-  venue?:     RichVenue  | null;
-  eveningVenue?: RichVenue | null;
-};
+type RichEvent = Partial<Event>;
 
 interface Props {
   open:          boolean;
@@ -63,7 +54,7 @@ const E = 'text-xs text-destructive mt-1';
 
 // ── Small person pill (for selected organizer) ────────────────────────────────
 
-function OrganizerPill({ person, onRemove }: { person: RichPerson; onRemove: () => void }) {
+function OrganizerPill({ person, onRemove }: { person: EventPersonSummary | RichPerson; onRemove: () => void }) {
   return (
     <div className="flex items-center gap-2 mt-1.5 bg-muted/50 border border-border rounded-lg px-3 py-2">
       <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary shrink-0">
@@ -118,7 +109,7 @@ export function EventForm({ open, onClose, onSubmit, isPending, defaultValues, m
   });
 
   // Controlled state for pickers
-  const [organizer,    setOrganizer]    = useState<RichPerson | null>(null);
+  const [organizer,    setOrganizer]    = useState<EventPersonSummary | RichPerson | null>(null);
   const [primaryVenue, setPrimaryVenue] = useState<VenueOption | null>(null);
   const [hasEvening,   setHasEvening]   = useState(false);
   const [eveningVenue, setEveningVenue] = useState<VenueOption | null>(null);
@@ -131,11 +122,11 @@ export function EventForm({ open, onClose, onSubmit, isPending, defaultValues, m
     reset(defaultValues ? {
       name:        defaultValues.name        ?? '',
       description: defaultValues.description ?? '',
-      eventType:   (defaultValues.eventType as any) ?? 'summit',
-      startDate:   (defaultValues.startDate as unknown as string) ?? '',
-      endDate:     (defaultValues.endDate   as unknown as string) ?? '',
-      city:        (defaultValues.city       as string | undefined) ?? '',
-      state:       (defaultValues.state      as string | undefined) ?? '',
+      eventType:   defaultValues.eventType ?? 'summit',
+      startDate:   defaultValues.startDate ?? '',
+      endDate:     defaultValues.endDate ?? '',
+      city:        defaultValues.city ?? '',
+      state:       defaultValues.state ?? '',
     } : { name: '', description: '', eventType: 'summit', startDate: '', endDate: '', city: '', state: '' });
 
     // Organizer

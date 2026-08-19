@@ -17,4 +17,10 @@ export interface EventUpdate {
   startDate?: Date;
   endDate?: Date;
   eventType?: EventUpdateEventType;
+  /** @nullable */
+  venueId?: number | null;
+  /** @nullable */
+  eveningVenueId?: number | null;
+  /** @nullable */
+  organizerId?: number | null;
 }

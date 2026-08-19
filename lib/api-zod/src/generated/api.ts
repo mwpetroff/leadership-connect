@@ -19,9 +19,17 @@ export const HealthCheckResponse = zod.object({
 /**
  * @summary List all people
  */
+export const listPeopleQueryLensDefault = `my_team`;
+export const listPeopleQueryIncludeInactiveDefault = false;
+
 export const ListPeopleQueryParams = zod.object({
   "role": zod.enum(['executive', 'secondary_leader', 'staff']).optional(),
-  "search": zod.coerce.string().optional()
+  "search": zod.coerce.string().optional(),
+  "lens": zod.enum(['my_team', 'departments', 'leader', 'hrbp', 'all']).default(listPeopleQueryLensDefault),
+  "departmentIds": zod.coerce.string().optional(),
+  "leaderId": zod.coerce.number().int().optional(),
+  "hrbpId": zod.coerce.number().int().optional(),
+  "includeInactive": zod.coerce.boolean().default(listPeopleQueryIncludeInactiveDefault)
 })
 
 export const ListPeopleResponseItem = zod.object({
@@ -29,11 +37,17 @@ export const ListPeopleResponseItem = zod.object({
   "name": zod.string(),
   "email": zod.string(),
   "title": zod.string().nullish(),
-  "department": zod.string().nullish(),
+  "department": zod.string().nullish().describe('Department display name (derived from departmentId)'),
+  "departmentId": zod.number().int().nullish(),
+  "hrbpId": zod.number().int().nullish(),
+  "hrbpName": zod.string().nullish(),
+  "managerName": zod.string().nullish(),
+  "isHrbp": zod.boolean().optional(),
+  "status": zod.enum(['active', 'inactive']).optional(),
   "role": zod.enum(['executive', 'secondary_leader', 'staff']),
   "homeCity": zod.string(),
   "homeState": zod.string(),
-  "managerId": zod.number().int().nullable().optional(),
+  "managerId": zod.number().int().nullish(),
   "notes": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().optional()
@@ -53,11 +67,15 @@ export const CreatePersonBody = zod.object({
   "name": zod.string().min(1),
   "email": zod.string(),
   "title": zod.string().optional(),
-  "department": zod.string().optional(),
+  "department": zod.string().optional().describe('Department name; resolved to departmentId. Unknown names are rejected.'),
+  "departmentId": zod.number().int().nullish(),
+  "hrbpId": zod.number().int().nullish(),
+  "isHrbp": zod.boolean().optional(),
+  "status": zod.enum(['active', 'inactive']).optional(),
   "role": zod.enum(['executive', 'secondary_leader', 'staff']),
   "homeCity": zod.string().min(1),
   "homeState": zod.string().min(1),
-  "managerId": zod.number().int().nullable().optional(),
+  "managerId": zod.number().int().nullish(),
   "notes": zod.string().optional()
 })
 
@@ -66,11 +84,17 @@ export const CreatePersonResponse = zod.object({
   "name": zod.string(),
   "email": zod.string(),
   "title": zod.string().nullish(),
-  "department": zod.string().nullish(),
+  "department": zod.string().nullish().describe('Department display name (derived from departmentId)'),
+  "departmentId": zod.number().int().nullish(),
+  "hrbpId": zod.number().int().nullish(),
+  "hrbpName": zod.string().nullish(),
+  "managerName": zod.string().nullish(),
+  "isHrbp": zod.boolean().optional(),
+  "status": zod.enum(['active', 'inactive']).optional(),
   "role": zod.enum(['executive', 'secondary_leader', 'staff']),
   "homeCity": zod.string(),
   "homeState": zod.string(),
-  "managerId": zod.number().int().nullable().optional(),
+  "managerId": zod.number().int().nullish(),
   "notes": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().optional()
@@ -89,11 +113,17 @@ export const GetPersonResponse = zod.object({
   "name": zod.string(),
   "email": zod.string(),
   "title": zod.string().nullish(),
-  "department": zod.string().nullish(),
+  "department": zod.string().nullish().describe('Department display name (derived from departmentId)'),
+  "departmentId": zod.number().int().nullish(),
+  "hrbpId": zod.number().int().nullish(),
+  "hrbpName": zod.string().nullish(),
+  "managerName": zod.string().nullish(),
+  "isHrbp": zod.boolean().optional(),
+  "status": zod.enum(['active', 'inactive']).optional(),
   "role": zod.enum(['executive', 'secondary_leader', 'staff']),
   "homeCity": zod.string(),
   "homeState": zod.string(),
-  "managerId": zod.number().int().nullable().optional(),
+  "managerId": zod.number().int().nullish(),
   "notes": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().optional()
@@ -115,10 +145,14 @@ export const UpdatePersonBody = zod.object({
   "email": zod.string().optional(),
   "title": zod.string().optional(),
   "department": zod.string().optional(),
+  "departmentId": zod.number().int().nullish(),
+  "hrbpId": zod.number().int().nullish(),
+  "isHrbp": zod.boolean().optional(),
+  "status": zod.enum(['active', 'inactive']).optional(),
   "role": zod.enum(['executive', 'secondary_leader', 'staff']).optional(),
   "homeCity": zod.string().optional(),
   "homeState": zod.string().optional(),
-  "managerId": zod.number().int().nullable().optional(),
+  "managerId": zod.number().int().nullish(),
   "notes": zod.string().optional()
 })
 
@@ -127,11 +161,17 @@ export const UpdatePersonResponse = zod.object({
   "name": zod.string(),
   "email": zod.string(),
   "title": zod.string().nullish(),
-  "department": zod.string().nullish(),
+  "department": zod.string().nullish().describe('Department display name (derived from departmentId)'),
+  "departmentId": zod.number().int().nullish(),
+  "hrbpId": zod.number().int().nullish(),
+  "hrbpName": zod.string().nullish(),
+  "managerName": zod.string().nullish(),
+  "isHrbp": zod.boolean().optional(),
+  "status": zod.enum(['active', 'inactive']).optional(),
   "role": zod.enum(['executive', 'secondary_leader', 'staff']),
   "homeCity": zod.string(),
   "homeState": zod.string(),
-  "managerId": zod.number().int().nullable().optional(),
+  "managerId": zod.number().int().nullish(),
   "notes": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().optional()
@@ -161,10 +201,17 @@ export const GetPersonEngagementResponse = zod.object({
   "name": zod.string(),
   "email": zod.string(),
   "title": zod.string().nullish(),
-  "department": zod.string().nullish(),
+  "department": zod.string().nullish().describe('Department display name (derived from departmentId)'),
+  "departmentId": zod.number().int().nullish(),
+  "hrbpId": zod.number().int().nullish(),
+  "hrbpName": zod.string().nullish(),
+  "managerName": zod.string().nullish(),
+  "isHrbp": zod.boolean().optional(),
+  "status": zod.enum(['active', 'inactive']).optional(),
   "role": zod.enum(['executive', 'secondary_leader', 'staff']),
   "homeCity": zod.string(),
   "homeState": zod.string(),
+  "managerId": zod.number().int().nullish(),
   "notes": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().optional()
@@ -183,10 +230,17 @@ export const GetPersonEngagementResponse = zod.object({
   "name": zod.string(),
   "email": zod.string(),
   "title": zod.string().nullish(),
-  "department": zod.string().nullish(),
+  "department": zod.string().nullish().describe('Department display name (derived from departmentId)'),
+  "departmentId": zod.number().int().nullish(),
+  "hrbpId": zod.number().int().nullish(),
+  "hrbpName": zod.string().nullish(),
+  "managerName": zod.string().nullish(),
+  "isHrbp": zod.boolean().optional(),
+  "status": zod.enum(['active', 'inactive']).optional(),
   "role": zod.enum(['executive', 'secondary_leader', 'staff']),
   "homeCity": zod.string(),
   "homeState": zod.string(),
+  "managerId": zod.number().int().nullish(),
   "notes": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().optional()
@@ -201,6 +255,41 @@ export const GetPersonEngagementResponse = zod.object({
   "startDate": zod.coerce.date(),
   "endDate": zod.coerce.date().nullish(),
   "eventType": zod.enum(['summit', 'conference', 'marketing', 'leadership', 'regional', 'other']),
+  "venueId": zod.number().int().nullish(),
+  "eveningVenueId": zod.number().int().nullish(),
+  "organizerId": zod.number().int().nullish(),
+  "venue": zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "address": zod.string(),
+  "city": zod.string(),
+  "state": zod.string(),
+  "zipCode": zod.string().nullish(),
+  "webLink": zod.string().nullish(),
+  "notes": zod.string().nullish()
+}).optional(),
+  "eveningVenue": zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "address": zod.string(),
+  "city": zod.string(),
+  "state": zod.string(),
+  "zipCode": zod.string().nullish(),
+  "webLink": zod.string().nullish(),
+  "notes": zod.string().nullish()
+}).optional(),
+  "sponsors": zod.array(zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "title": zod.string().nullish(),
+  "role": zod.string()
+})).optional(),
+  "organizer": zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "title": zod.string().nullish(),
+  "role": zod.string()
+}).optional(),
   "leaderCount": zod.number().int().optional(),
   "inviteeCount": zod.number().int().optional(),
   "attendeeCount": zod.number().int().optional(),
@@ -219,10 +308,17 @@ export const GetPersonEngagementResponse = zod.object({
   "name": zod.string(),
   "email": zod.string(),
   "title": zod.string().nullish(),
-  "department": zod.string().nullish(),
+  "department": zod.string().nullish().describe('Department display name (derived from departmentId)'),
+  "departmentId": zod.number().int().nullish(),
+  "hrbpId": zod.number().int().nullish(),
+  "hrbpName": zod.string().nullish(),
+  "managerName": zod.string().nullish(),
+  "isHrbp": zod.boolean().optional(),
+  "status": zod.enum(['active', 'inactive']).optional(),
   "role": zod.enum(['executive', 'secondary_leader', 'staff']),
   "homeCity": zod.string(),
   "homeState": zod.string(),
+  "managerId": zod.number().int().nullish(),
   "notes": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().optional()
@@ -230,6 +326,7 @@ export const GetPersonEngagementResponse = zod.object({
   "participantCount": zod.number().int().optional(),
   "teamsJoinUrl": zod.string().nullish().describe('Microsoft Teams meeting join URL, populated when the meeting is scheduled via Graph API.'),
   "graphMeetingId": zod.string().nullish().describe('Microsoft Graph online meeting ID for cancellation.'),
+  "meetingKind": zod.enum(['general', 'hrbp_1on1', 'leader_1on1', 'skip_level']).optional().describe('Coverage-clock classification. general is the legacy default.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().optional()
 })),
@@ -242,9 +339,17 @@ export const GetPersonEngagementResponse = zod.object({
 /**
  * @summary List all events
  */
+export const listEventsQueryLensDefault = `my_team`;
+export const listEventsQueryIncludeInactiveDefault = false;
+
 export const ListEventsQueryParams = zod.object({
   "upcoming": zod.coerce.boolean().optional(),
-  "type": zod.coerce.string().optional()
+  "type": zod.coerce.string().optional(),
+  "lens": zod.enum(['my_team', 'departments', 'leader', 'hrbp', 'all']).default(listEventsQueryLensDefault),
+  "departmentIds": zod.coerce.string().optional(),
+  "leaderId": zod.coerce.number().int().optional(),
+  "hrbpId": zod.coerce.number().int().optional(),
+  "includeInactive": zod.coerce.boolean().default(listEventsQueryIncludeInactiveDefault)
 })
 
 export const ListEventsResponseItem = zod.object({
@@ -257,6 +362,41 @@ export const ListEventsResponseItem = zod.object({
   "startDate": zod.coerce.date(),
   "endDate": zod.coerce.date().nullish(),
   "eventType": zod.enum(['summit', 'conference', 'marketing', 'leadership', 'regional', 'other']),
+  "venueId": zod.number().int().nullish(),
+  "eveningVenueId": zod.number().int().nullish(),
+  "organizerId": zod.number().int().nullish(),
+  "venue": zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "address": zod.string(),
+  "city": zod.string(),
+  "state": zod.string(),
+  "zipCode": zod.string().nullish(),
+  "webLink": zod.string().nullish(),
+  "notes": zod.string().nullish()
+}).optional(),
+  "eveningVenue": zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "address": zod.string(),
+  "city": zod.string(),
+  "state": zod.string(),
+  "zipCode": zod.string().nullish(),
+  "webLink": zod.string().nullish(),
+  "notes": zod.string().nullish()
+}).optional(),
+  "sponsors": zod.array(zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "title": zod.string().nullish(),
+  "role": zod.string()
+})).optional(),
+  "organizer": zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "title": zod.string().nullish(),
+  "role": zod.string()
+}).optional(),
   "leaderCount": zod.number().int().optional(),
   "inviteeCount": zod.number().int().optional(),
   "attendeeCount": zod.number().int().optional(),
@@ -271,9 +411,6 @@ export const ListEventsResponse = zod.array(ListEventsResponseItem)
 
 
 
-
-
-
 export const CreateEventBody = zod.object({
   "name": zod.string().min(1),
   "description": zod.string().optional(),
@@ -285,26 +422,8 @@ export const CreateEventBody = zod.object({
   "eventType": zod.enum(['summit', 'conference', 'marketing', 'leadership', 'regional', 'other']),
   "venueId": zod.number().int().optional(),
   "eveningVenueId": zod.number().int().optional(),
-  "sponsorIds": zod.array(zod.number().int()).optional(),
-  "organizerId": zod.number().int().optional()
-})
-
-const VenueSummary = zod.object({
-  "id": zod.number().int(),
-  "name": zod.string(),
-  "address": zod.string(),
-  "city": zod.string(),
-  "state": zod.string(),
-  "zipCode": zod.string().nullish(),
-  "webLink": zod.string().nullish(),
-  "notes": zod.string().nullish()
-}).optional()
-
-const PersonSummary = zod.object({
-  "id": zod.number().int(),
-  "name": zod.string(),
-  "title": zod.string().nullish(),
-  "role": zod.string()
+  "organizerId": zod.number().int().optional(),
+  "sponsorIds": zod.array(zod.number().int()).optional()
 })
 
 export const CreateEventResponse = zod.object({
@@ -320,10 +439,38 @@ export const CreateEventResponse = zod.object({
   "venueId": zod.number().int().nullish(),
   "eveningVenueId": zod.number().int().nullish(),
   "organizerId": zod.number().int().nullish(),
-  "venue": VenueSummary.optional(),
-  "eveningVenue": VenueSummary.optional(),
-  "sponsors": zod.array(PersonSummary).optional(),
-  "organizer": PersonSummary.optional(),
+  "venue": zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "address": zod.string(),
+  "city": zod.string(),
+  "state": zod.string(),
+  "zipCode": zod.string().nullish(),
+  "webLink": zod.string().nullish(),
+  "notes": zod.string().nullish()
+}).optional(),
+  "eveningVenue": zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "address": zod.string(),
+  "city": zod.string(),
+  "state": zod.string(),
+  "zipCode": zod.string().nullish(),
+  "webLink": zod.string().nullish(),
+  "notes": zod.string().nullish()
+}).optional(),
+  "sponsors": zod.array(zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "title": zod.string().nullish(),
+  "role": zod.string()
+})).optional(),
+  "organizer": zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "title": zod.string().nullish(),
+  "role": zod.string()
+}).optional(),
   "leaderCount": zod.number().int().optional(),
   "inviteeCount": zod.number().int().optional(),
   "attendeeCount": zod.number().int().optional(),
@@ -351,10 +498,38 @@ export const GetEventResponse = zod.object({
   "venueId": zod.number().int().nullish(),
   "eveningVenueId": zod.number().int().nullish(),
   "organizerId": zod.number().int().nullish(),
-  "venue": VenueSummary.optional(),
-  "eveningVenue": VenueSummary.optional(),
-  "sponsors": zod.array(PersonSummary).optional(),
-  "organizer": PersonSummary.optional(),
+  "venue": zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "address": zod.string(),
+  "city": zod.string(),
+  "state": zod.string(),
+  "zipCode": zod.string().nullish(),
+  "webLink": zod.string().nullish(),
+  "notes": zod.string().nullish()
+}).optional(),
+  "eveningVenue": zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "address": zod.string(),
+  "city": zod.string(),
+  "state": zod.string(),
+  "zipCode": zod.string().nullish(),
+  "webLink": zod.string().nullish(),
+  "notes": zod.string().nullish()
+}).optional(),
+  "sponsors": zod.array(zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "title": zod.string().nullish(),
+  "role": zod.string()
+})).optional(),
+  "organizer": zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "title": zod.string().nullish(),
+  "role": zod.string()
+}).optional(),
   "leaderCount": zod.number().int().optional(),
   "inviteeCount": zod.number().int().optional(),
   "attendeeCount": zod.number().int().optional(),
@@ -399,29 +574,42 @@ export const UpdateEventResponse = zod.object({
   "venueId": zod.number().int().nullish(),
   "eveningVenueId": zod.number().int().nullish(),
   "organizerId": zod.number().int().nullish(),
-  "venue": VenueSummary.optional(),
-  "eveningVenue": VenueSummary.optional(),
-  "sponsors": zod.array(PersonSummary).optional(),
-  "organizer": PersonSummary.optional(),
+  "venue": zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "address": zod.string(),
+  "city": zod.string(),
+  "state": zod.string(),
+  "zipCode": zod.string().nullish(),
+  "webLink": zod.string().nullish(),
+  "notes": zod.string().nullish()
+}).optional(),
+  "eveningVenue": zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "address": zod.string(),
+  "city": zod.string(),
+  "state": zod.string(),
+  "zipCode": zod.string().nullish(),
+  "webLink": zod.string().nullish(),
+  "notes": zod.string().nullish()
+}).optional(),
+  "sponsors": zod.array(zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "title": zod.string().nullish(),
+  "role": zod.string()
+})).optional(),
+  "organizer": zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "title": zod.string().nullish(),
+  "role": zod.string()
+}).optional(),
   "leaderCount": zod.number().int().optional(),
   "inviteeCount": zod.number().int().optional(),
   "attendeeCount": zod.number().int().optional(),
   "createdAt": zod.coerce.date()
-})
-
-// ── Event sponsor endpoints ─────────────────────────────────────────────────
-
-export const AddEventSponsorParams = zod.object({
-  "eventId": zod.coerce.number().int()
-})
-
-export const AddEventSponsorBody = zod.object({
-  "personId": zod.number().int()
-})
-
-export const RemoveEventSponsorParams = zod.object({
-  "eventId": zod.coerce.number().int(),
-  "personId": zod.coerce.number().int()
 })
 
 
@@ -447,10 +635,17 @@ export const ListEventLeadersResponseItem = zod.object({
   "name": zod.string(),
   "email": zod.string(),
   "title": zod.string().nullish(),
-  "department": zod.string().nullish(),
+  "department": zod.string().nullish().describe('Department display name (derived from departmentId)'),
+  "departmentId": zod.number().int().nullish(),
+  "hrbpId": zod.number().int().nullish(),
+  "hrbpName": zod.string().nullish(),
+  "managerName": zod.string().nullish(),
+  "isHrbp": zod.boolean().optional(),
+  "status": zod.enum(['active', 'inactive']).optional(),
   "role": zod.enum(['executive', 'secondary_leader', 'staff']),
   "homeCity": zod.string(),
   "homeState": zod.string(),
+  "managerId": zod.number().int().nullish(),
   "notes": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().optional()
@@ -485,6 +680,50 @@ export const RemoveEventLeaderResponse = zod.void()
 
 
 /**
+ * @summary List sponsors for an event
+ */
+export const ListEventSponsorsParams = zod.object({
+  "eventId": zod.coerce.number().int()
+})
+
+export const ListEventSponsorsResponseItem = zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "title": zod.string().nullish(),
+  "role": zod.string()
+})
+export const ListEventSponsorsResponse = zod.array(ListEventSponsorsResponseItem)
+
+
+/**
+ * @summary Add a sponsor to an event
+ */
+export const AddEventSponsorParams = zod.object({
+  "eventId": zod.coerce.number().int()
+})
+
+export const AddEventSponsorBody = zod.object({
+  "personId": zod.number().int()
+})
+
+export const AddEventSponsorResponse = zod.object({
+  "eventId": zod.number().int(),
+  "personId": zod.number().int()
+})
+
+
+/**
+ * @summary Remove a sponsor from an event
+ */
+export const RemoveEventSponsorParams = zod.object({
+  "eventId": zod.coerce.number().int(),
+  "personId": zod.coerce.number().int()
+})
+
+export const RemoveEventSponsorResponse = zod.void()
+
+
+/**
  * @summary List all invitations for an event
  */
 export const ListEventInvitationsParams = zod.object({
@@ -505,10 +744,17 @@ export const ListEventInvitationsResponseItem = zod.object({
   "name": zod.string(),
   "email": zod.string(),
   "title": zod.string().nullish(),
-  "department": zod.string().nullish(),
+  "department": zod.string().nullish().describe('Department display name (derived from departmentId)'),
+  "departmentId": zod.number().int().nullish(),
+  "hrbpId": zod.number().int().nullish(),
+  "hrbpName": zod.string().nullish(),
+  "managerName": zod.string().nullish(),
+  "isHrbp": zod.boolean().optional(),
+  "status": zod.enum(['active', 'inactive']).optional(),
   "role": zod.enum(['executive', 'secondary_leader', 'staff']),
   "homeCity": zod.string(),
   "homeState": zod.string(),
+  "managerId": zod.number().int().nullish(),
   "notes": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().optional()
@@ -523,6 +769,41 @@ export const ListEventInvitationsResponseItem = zod.object({
   "startDate": zod.coerce.date(),
   "endDate": zod.coerce.date().nullish(),
   "eventType": zod.enum(['summit', 'conference', 'marketing', 'leadership', 'regional', 'other']),
+  "venueId": zod.number().int().nullish(),
+  "eveningVenueId": zod.number().int().nullish(),
+  "organizerId": zod.number().int().nullish(),
+  "venue": zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "address": zod.string(),
+  "city": zod.string(),
+  "state": zod.string(),
+  "zipCode": zod.string().nullish(),
+  "webLink": zod.string().nullish(),
+  "notes": zod.string().nullish()
+}).optional(),
+  "eveningVenue": zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "address": zod.string(),
+  "city": zod.string(),
+  "state": zod.string(),
+  "zipCode": zod.string().nullish(),
+  "webLink": zod.string().nullish(),
+  "notes": zod.string().nullish()
+}).optional(),
+  "sponsors": zod.array(zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "title": zod.string().nullish(),
+  "role": zod.string()
+})).optional(),
+  "organizer": zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "title": zod.string().nullish(),
+  "role": zod.string()
+}).optional(),
   "leaderCount": zod.number().int().optional(),
   "inviteeCount": zod.number().int().optional(),
   "attendeeCount": zod.number().int().optional(),
@@ -559,10 +840,17 @@ export const CreateInvitationResponse = zod.object({
   "name": zod.string(),
   "email": zod.string(),
   "title": zod.string().nullish(),
-  "department": zod.string().nullish(),
+  "department": zod.string().nullish().describe('Department display name (derived from departmentId)'),
+  "departmentId": zod.number().int().nullish(),
+  "hrbpId": zod.number().int().nullish(),
+  "hrbpName": zod.string().nullish(),
+  "managerName": zod.string().nullish(),
+  "isHrbp": zod.boolean().optional(),
+  "status": zod.enum(['active', 'inactive']).optional(),
   "role": zod.enum(['executive', 'secondary_leader', 'staff']),
   "homeCity": zod.string(),
   "homeState": zod.string(),
+  "managerId": zod.number().int().nullish(),
   "notes": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().optional()
@@ -577,6 +865,41 @@ export const CreateInvitationResponse = zod.object({
   "startDate": zod.coerce.date(),
   "endDate": zod.coerce.date().nullish(),
   "eventType": zod.enum(['summit', 'conference', 'marketing', 'leadership', 'regional', 'other']),
+  "venueId": zod.number().int().nullish(),
+  "eveningVenueId": zod.number().int().nullish(),
+  "organizerId": zod.number().int().nullish(),
+  "venue": zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "address": zod.string(),
+  "city": zod.string(),
+  "state": zod.string(),
+  "zipCode": zod.string().nullish(),
+  "webLink": zod.string().nullish(),
+  "notes": zod.string().nullish()
+}).optional(),
+  "eveningVenue": zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "address": zod.string(),
+  "city": zod.string(),
+  "state": zod.string(),
+  "zipCode": zod.string().nullish(),
+  "webLink": zod.string().nullish(),
+  "notes": zod.string().nullish()
+}).optional(),
+  "sponsors": zod.array(zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "title": zod.string().nullish(),
+  "role": zod.string()
+})).optional(),
+  "organizer": zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "title": zod.string().nullish(),
+  "role": zod.string()
+}).optional(),
   "leaderCount": zod.number().int().optional(),
   "inviteeCount": zod.number().int().optional(),
   "attendeeCount": zod.number().int().optional(),
@@ -617,10 +940,17 @@ export const BulkCreateInvitationsResponse = zod.object({
   "name": zod.string(),
   "email": zod.string(),
   "title": zod.string().nullish(),
-  "department": zod.string().nullish(),
+  "department": zod.string().nullish().describe('Department display name (derived from departmentId)'),
+  "departmentId": zod.number().int().nullish(),
+  "hrbpId": zod.number().int().nullish(),
+  "hrbpName": zod.string().nullish(),
+  "managerName": zod.string().nullish(),
+  "isHrbp": zod.boolean().optional(),
+  "status": zod.enum(['active', 'inactive']).optional(),
   "role": zod.enum(['executive', 'secondary_leader', 'staff']),
   "homeCity": zod.string(),
   "homeState": zod.string(),
+  "managerId": zod.number().int().nullish(),
   "notes": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().optional()
@@ -635,6 +965,41 @@ export const BulkCreateInvitationsResponse = zod.object({
   "startDate": zod.coerce.date(),
   "endDate": zod.coerce.date().nullish(),
   "eventType": zod.enum(['summit', 'conference', 'marketing', 'leadership', 'regional', 'other']),
+  "venueId": zod.number().int().nullish(),
+  "eveningVenueId": zod.number().int().nullish(),
+  "organizerId": zod.number().int().nullish(),
+  "venue": zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "address": zod.string(),
+  "city": zod.string(),
+  "state": zod.string(),
+  "zipCode": zod.string().nullish(),
+  "webLink": zod.string().nullish(),
+  "notes": zod.string().nullish()
+}).optional(),
+  "eveningVenue": zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "address": zod.string(),
+  "city": zod.string(),
+  "state": zod.string(),
+  "zipCode": zod.string().nullish(),
+  "webLink": zod.string().nullish(),
+  "notes": zod.string().nullish()
+}).optional(),
+  "sponsors": zod.array(zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "title": zod.string().nullish(),
+  "role": zod.string()
+})).optional(),
+  "organizer": zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "title": zod.string().nullish(),
+  "role": zod.string()
+}).optional(),
   "leaderCount": zod.number().int().optional(),
   "inviteeCount": zod.number().int().optional(),
   "attendeeCount": zod.number().int().optional(),
@@ -692,10 +1057,17 @@ export const UpdateInvitationResponse = zod.object({
   "name": zod.string(),
   "email": zod.string(),
   "title": zod.string().nullish(),
-  "department": zod.string().nullish(),
+  "department": zod.string().nullish().describe('Department display name (derived from departmentId)'),
+  "departmentId": zod.number().int().nullish(),
+  "hrbpId": zod.number().int().nullish(),
+  "hrbpName": zod.string().nullish(),
+  "managerName": zod.string().nullish(),
+  "isHrbp": zod.boolean().optional(),
+  "status": zod.enum(['active', 'inactive']).optional(),
   "role": zod.enum(['executive', 'secondary_leader', 'staff']),
   "homeCity": zod.string(),
   "homeState": zod.string(),
+  "managerId": zod.number().int().nullish(),
   "notes": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().optional()
@@ -710,6 +1082,41 @@ export const UpdateInvitationResponse = zod.object({
   "startDate": zod.coerce.date(),
   "endDate": zod.coerce.date().nullish(),
   "eventType": zod.enum(['summit', 'conference', 'marketing', 'leadership', 'regional', 'other']),
+  "venueId": zod.number().int().nullish(),
+  "eveningVenueId": zod.number().int().nullish(),
+  "organizerId": zod.number().int().nullish(),
+  "venue": zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "address": zod.string(),
+  "city": zod.string(),
+  "state": zod.string(),
+  "zipCode": zod.string().nullish(),
+  "webLink": zod.string().nullish(),
+  "notes": zod.string().nullish()
+}).optional(),
+  "eveningVenue": zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "address": zod.string(),
+  "city": zod.string(),
+  "state": zod.string(),
+  "zipCode": zod.string().nullish(),
+  "webLink": zod.string().nullish(),
+  "notes": zod.string().nullish()
+}).optional(),
+  "sponsors": zod.array(zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "title": zod.string().nullish(),
+  "role": zod.string()
+})).optional(),
+  "organizer": zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "title": zod.string().nullish(),
+  "role": zod.string()
+}).optional(),
   "leaderCount": zod.number().int().optional(),
   "inviteeCount": zod.number().int().optional(),
   "attendeeCount": zod.number().int().optional(),
@@ -731,8 +1138,16 @@ export const DeleteInvitationResponse = zod.void()
 /**
  * @summary List all virtual meetings
  */
+export const listVirtualMeetingsQueryLensDefault = `my_team`;
+export const listVirtualMeetingsQueryIncludeInactiveDefault = false;
+
 export const ListVirtualMeetingsQueryParams = zod.object({
-  "status": zod.enum(['suggested', 'scheduled', 'completed', 'cancelled']).optional()
+  "status": zod.enum(['suggested', 'scheduled', 'completed', 'cancelled']).optional(),
+  "lens": zod.enum(['my_team', 'departments', 'leader', 'hrbp', 'all']).default(listVirtualMeetingsQueryLensDefault),
+  "departmentIds": zod.coerce.string().optional(),
+  "leaderId": zod.coerce.number().int().optional(),
+  "hrbpId": zod.coerce.number().int().optional(),
+  "includeInactive": zod.coerce.boolean().default(listVirtualMeetingsQueryIncludeInactiveDefault)
 })
 
 export const ListVirtualMeetingsResponseItem = zod.object({
@@ -747,10 +1162,17 @@ export const ListVirtualMeetingsResponseItem = zod.object({
   "name": zod.string(),
   "email": zod.string(),
   "title": zod.string().nullish(),
-  "department": zod.string().nullish(),
+  "department": zod.string().nullish().describe('Department display name (derived from departmentId)'),
+  "departmentId": zod.number().int().nullish(),
+  "hrbpId": zod.number().int().nullish(),
+  "hrbpName": zod.string().nullish(),
+  "managerName": zod.string().nullish(),
+  "isHrbp": zod.boolean().optional(),
+  "status": zod.enum(['active', 'inactive']).optional(),
   "role": zod.enum(['executive', 'secondary_leader', 'staff']),
   "homeCity": zod.string(),
   "homeState": zod.string(),
+  "managerId": zod.number().int().nullish(),
   "notes": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().optional()
@@ -758,6 +1180,7 @@ export const ListVirtualMeetingsResponseItem = zod.object({
   "participantCount": zod.number().int().optional(),
   "teamsJoinUrl": zod.string().nullish().describe('Microsoft Teams meeting join URL, populated when the meeting is scheduled via Graph API.'),
   "graphMeetingId": zod.string().nullish().describe('Microsoft Graph online meeting ID for cancellation.'),
+  "meetingKind": zod.enum(['general', 'hrbp_1on1', 'leader_1on1', 'skip_level']).optional().describe('Coverage-clock classification. general is the legacy default.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().optional()
 })
@@ -775,7 +1198,8 @@ export const CreateVirtualMeetingBody = zod.object({
   "scheduledDate": zod.coerce.date().optional(),
   "status": zod.enum(['suggested', 'scheduled', 'completed', 'cancelled']).optional(),
   "notes": zod.string().optional(),
-  "hostId": zod.number().int().optional()
+  "hostId": zod.number().int().optional(),
+  "meetingKind": zod.enum(['general', 'hrbp_1on1', 'leader_1on1', 'skip_level']).optional()
 })
 
 export const CreateVirtualMeetingResponse = zod.object({
@@ -790,10 +1214,17 @@ export const CreateVirtualMeetingResponse = zod.object({
   "name": zod.string(),
   "email": zod.string(),
   "title": zod.string().nullish(),
-  "department": zod.string().nullish(),
+  "department": zod.string().nullish().describe('Department display name (derived from departmentId)'),
+  "departmentId": zod.number().int().nullish(),
+  "hrbpId": zod.number().int().nullish(),
+  "hrbpName": zod.string().nullish(),
+  "managerName": zod.string().nullish(),
+  "isHrbp": zod.boolean().optional(),
+  "status": zod.enum(['active', 'inactive']).optional(),
   "role": zod.enum(['executive', 'secondary_leader', 'staff']),
   "homeCity": zod.string(),
   "homeState": zod.string(),
+  "managerId": zod.number().int().nullish(),
   "notes": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().optional()
@@ -801,6 +1232,7 @@ export const CreateVirtualMeetingResponse = zod.object({
   "participantCount": zod.number().int().optional(),
   "teamsJoinUrl": zod.string().nullish().describe('Microsoft Teams meeting join URL, populated when the meeting is scheduled via Graph API.'),
   "graphMeetingId": zod.string().nullish().describe('Microsoft Graph online meeting ID for cancellation.'),
+  "meetingKind": zod.enum(['general', 'hrbp_1on1', 'leader_1on1', 'skip_level']).optional().describe('Coverage-clock classification. general is the legacy default.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().optional()
 })
@@ -825,10 +1257,17 @@ export const GetVirtualMeetingResponse = zod.object({
   "name": zod.string(),
   "email": zod.string(),
   "title": zod.string().nullish(),
-  "department": zod.string().nullish(),
+  "department": zod.string().nullish().describe('Department display name (derived from departmentId)'),
+  "departmentId": zod.number().int().nullish(),
+  "hrbpId": zod.number().int().nullish(),
+  "hrbpName": zod.string().nullish(),
+  "managerName": zod.string().nullish(),
+  "isHrbp": zod.boolean().optional(),
+  "status": zod.enum(['active', 'inactive']).optional(),
   "role": zod.enum(['executive', 'secondary_leader', 'staff']),
   "homeCity": zod.string(),
   "homeState": zod.string(),
+  "managerId": zod.number().int().nullish(),
   "notes": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().optional()
@@ -836,6 +1275,7 @@ export const GetVirtualMeetingResponse = zod.object({
   "participantCount": zod.number().int().optional(),
   "teamsJoinUrl": zod.string().nullish().describe('Microsoft Teams meeting join URL, populated when the meeting is scheduled via Graph API.'),
   "graphMeetingId": zod.string().nullish().describe('Microsoft Graph online meeting ID for cancellation.'),
+  "meetingKind": zod.enum(['general', 'hrbp_1on1', 'leader_1on1', 'skip_level']).optional().describe('Coverage-clock classification. general is the legacy default.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().optional()
 })
@@ -856,7 +1296,8 @@ export const UpdateVirtualMeetingBody = zod.object({
   "scheduledDate": zod.coerce.date().optional(),
   "status": zod.enum(['suggested', 'scheduled', 'completed', 'cancelled']).optional(),
   "notes": zod.string().optional(),
-  "hostId": zod.number().int().optional()
+  "hostId": zod.number().int().optional(),
+  "meetingKind": zod.enum(['general', 'hrbp_1on1', 'leader_1on1', 'skip_level']).optional()
 })
 
 export const UpdateVirtualMeetingResponse = zod.object({
@@ -871,10 +1312,17 @@ export const UpdateVirtualMeetingResponse = zod.object({
   "name": zod.string(),
   "email": zod.string(),
   "title": zod.string().nullish(),
-  "department": zod.string().nullish(),
+  "department": zod.string().nullish().describe('Department display name (derived from departmentId)'),
+  "departmentId": zod.number().int().nullish(),
+  "hrbpId": zod.number().int().nullish(),
+  "hrbpName": zod.string().nullish(),
+  "managerName": zod.string().nullish(),
+  "isHrbp": zod.boolean().optional(),
+  "status": zod.enum(['active', 'inactive']).optional(),
   "role": zod.enum(['executive', 'secondary_leader', 'staff']),
   "homeCity": zod.string(),
   "homeState": zod.string(),
+  "managerId": zod.number().int().nullish(),
   "notes": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().optional()
@@ -882,6 +1330,7 @@ export const UpdateVirtualMeetingResponse = zod.object({
   "participantCount": zod.number().int().optional(),
   "teamsJoinUrl": zod.string().nullish().describe('Microsoft Teams meeting join URL, populated when the meeting is scheduled via Graph API.'),
   "graphMeetingId": zod.string().nullish().describe('Microsoft Graph online meeting ID for cancellation.'),
+  "meetingKind": zod.enum(['general', 'hrbp_1on1', 'leader_1on1', 'skip_level']).optional().describe('Coverage-clock classification. general is the legacy default.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().optional()
 })
@@ -909,10 +1358,17 @@ export const ListVirtualMeetingParticipantsResponseItem = zod.object({
   "name": zod.string(),
   "email": zod.string(),
   "title": zod.string().nullish(),
-  "department": zod.string().nullish(),
+  "department": zod.string().nullish().describe('Department display name (derived from departmentId)'),
+  "departmentId": zod.number().int().nullish(),
+  "hrbpId": zod.number().int().nullish(),
+  "hrbpName": zod.string().nullish(),
+  "managerName": zod.string().nullish(),
+  "isHrbp": zod.boolean().optional(),
+  "status": zod.enum(['active', 'inactive']).optional(),
   "role": zod.enum(['executive', 'secondary_leader', 'staff']),
   "homeCity": zod.string(),
   "homeState": zod.string(),
+  "managerId": zod.number().int().nullish(),
   "notes": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().optional()
@@ -1017,6 +1473,17 @@ export const ListAuditLogResponse = zod.object({
 /**
  * @summary Get high-level engagement summary and stats
  */
+export const getDashboardSummaryQueryLensDefault = `my_team`;
+export const getDashboardSummaryQueryIncludeInactiveDefault = false;
+
+export const GetDashboardSummaryQueryParams = zod.object({
+  "lens": zod.enum(['my_team', 'departments', 'leader', 'hrbp', 'all']).default(getDashboardSummaryQueryLensDefault),
+  "departmentIds": zod.coerce.string().optional(),
+  "leaderId": zod.coerce.number().int().optional(),
+  "hrbpId": zod.coerce.number().int().optional(),
+  "includeInactive": zod.coerce.boolean().default(getDashboardSummaryQueryIncludeInactiveDefault)
+})
+
 export const GetDashboardSummaryResponse = zod.object({
   "totalPeople": zod.number().int(),
   "totalEvents": zod.number().int(),
@@ -1043,14 +1510,56 @@ export const GetDashboardSummaryResponse = zod.object({
   "name": zod.string(),
   "email": zod.string(),
   "title": zod.string().nullish(),
-  "department": zod.string().nullish(),
+  "department": zod.string().nullish().describe('Department display name (derived from departmentId)'),
+  "departmentId": zod.number().int().nullish(),
+  "hrbpId": zod.number().int().nullish(),
+  "hrbpName": zod.string().nullish(),
+  "managerName": zod.string().nullish(),
+  "isHrbp": zod.boolean().optional(),
+  "status": zod.enum(['active', 'inactive']).optional(),
   "role": zod.enum(['executive', 'secondary_leader', 'staff']),
   "homeCity": zod.string(),
   "homeState": zod.string(),
+  "managerId": zod.number().int().nullish(),
   "notes": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().optional()
+})),
+  "coverage": zod.object({
+  "counts": zod.record(zod.string(), zod.number().int()).optional(),
+  "labels": zod.record(zod.string(), zod.string()).optional(),
+  "people": zod.array(zod.object({
+  "person": zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "email": zod.string(),
+  "title": zod.string().nullish(),
+  "department": zod.string().nullish().describe('Department display name (derived from departmentId)'),
+  "departmentId": zod.number().int().nullish(),
+  "hrbpId": zod.number().int().nullish(),
+  "hrbpName": zod.string().nullish(),
+  "managerName": zod.string().nullish(),
+  "isHrbp": zod.boolean().optional(),
+  "status": zod.enum(['active', 'inactive']).optional(),
+  "role": zod.enum(['executive', 'secondary_leader', 'staff']),
+  "homeCity": zod.string(),
+  "homeState": zod.string(),
+  "managerId": zod.number().int().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date().optional()
+}).optional(),
+  "overdueCount": zod.number().int(),
+  "gaps": zod.array(zod.object({
+  "kind": zod.enum(['hrbp_1on1', 'leader_1on1', 'skip_level', 'onsite_leadership']),
+  "daysSince": zod.number().int().nullish(),
+  "thresholdDays": zod.number().int(),
+  "overdue": zod.boolean(),
+  "notApplicable": zod.boolean(),
+  "label": zod.string().optional()
 }))
+})).optional()
+}).optional()
 })
 
 
@@ -1068,6 +1577,41 @@ export const GetMeetupSuggestionsResponseItem = zod.object({
   "startDate": zod.coerce.date(),
   "endDate": zod.coerce.date().nullish(),
   "eventType": zod.enum(['summit', 'conference', 'marketing', 'leadership', 'regional', 'other']),
+  "venueId": zod.number().int().nullish(),
+  "eveningVenueId": zod.number().int().nullish(),
+  "organizerId": zod.number().int().nullish(),
+  "venue": zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "address": zod.string(),
+  "city": zod.string(),
+  "state": zod.string(),
+  "zipCode": zod.string().nullish(),
+  "webLink": zod.string().nullish(),
+  "notes": zod.string().nullish()
+}).optional(),
+  "eveningVenue": zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "address": zod.string(),
+  "city": zod.string(),
+  "state": zod.string(),
+  "zipCode": zod.string().nullish(),
+  "webLink": zod.string().nullish(),
+  "notes": zod.string().nullish()
+}).optional(),
+  "sponsors": zod.array(zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "title": zod.string().nullish(),
+  "role": zod.string()
+})).optional(),
+  "organizer": zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "title": zod.string().nullish(),
+  "role": zod.string()
+}).optional(),
   "leaderCount": zod.number().int().optional(),
   "inviteeCount": zod.number().int().optional(),
   "attendeeCount": zod.number().int().optional(),
@@ -1078,10 +1622,17 @@ export const GetMeetupSuggestionsResponseItem = zod.object({
   "name": zod.string(),
   "email": zod.string(),
   "title": zod.string().nullish(),
-  "department": zod.string().nullish(),
+  "department": zod.string().nullish().describe('Department display name (derived from departmentId)'),
+  "departmentId": zod.number().int().nullish(),
+  "hrbpId": zod.number().int().nullish(),
+  "hrbpName": zod.string().nullish(),
+  "managerName": zod.string().nullish(),
+  "isHrbp": zod.boolean().optional(),
+  "status": zod.enum(['active', 'inactive']).optional(),
   "role": zod.enum(['executive', 'secondary_leader', 'staff']),
   "homeCity": zod.string(),
   "homeState": zod.string(),
+  "managerId": zod.number().int().nullish(),
   "notes": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().optional()
@@ -1092,10 +1643,17 @@ export const GetMeetupSuggestionsResponseItem = zod.object({
   "name": zod.string(),
   "email": zod.string(),
   "title": zod.string().nullish(),
-  "department": zod.string().nullish(),
+  "department": zod.string().nullish().describe('Department display name (derived from departmentId)'),
+  "departmentId": zod.number().int().nullish(),
+  "hrbpId": zod.number().int().nullish(),
+  "hrbpName": zod.string().nullish(),
+  "managerName": zod.string().nullish(),
+  "isHrbp": zod.boolean().optional(),
+  "status": zod.enum(['active', 'inactive']).optional(),
   "role": zod.enum(['executive', 'secondary_leader', 'staff']),
   "homeCity": zod.string(),
   "homeState": zod.string(),
+  "managerId": zod.number().int().nullish(),
   "notes": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().optional()
@@ -1116,10 +1674,17 @@ export const GetVirtualSuggestionsResponseItem = zod.object({
   "name": zod.string(),
   "email": zod.string(),
   "title": zod.string().nullish(),
-  "department": zod.string().nullish(),
+  "department": zod.string().nullish().describe('Department display name (derived from departmentId)'),
+  "departmentId": zod.number().int().nullish(),
+  "hrbpId": zod.number().int().nullish(),
+  "hrbpName": zod.string().nullish(),
+  "managerName": zod.string().nullish(),
+  "isHrbp": zod.boolean().optional(),
+  "status": zod.enum(['active', 'inactive']).optional(),
   "role": zod.enum(['executive', 'secondary_leader', 'staff']),
   "homeCity": zod.string(),
   "homeState": zod.string(),
+  "managerId": zod.number().int().nullish(),
   "notes": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().optional()
@@ -1132,15 +1697,148 @@ export const GetVirtualSuggestionsResponseItem = zod.object({
   "name": zod.string(),
   "email": zod.string(),
   "title": zod.string().nullish(),
-  "department": zod.string().nullish(),
+  "department": zod.string().nullish().describe('Department display name (derived from departmentId)'),
+  "departmentId": zod.number().int().nullish(),
+  "hrbpId": zod.number().int().nullish(),
+  "hrbpName": zod.string().nullish(),
+  "managerName": zod.string().nullish(),
+  "isHrbp": zod.boolean().optional(),
+  "status": zod.enum(['active', 'inactive']).optional(),
   "role": zod.enum(['executive', 'secondary_leader', 'staff']),
   "homeCity": zod.string(),
   "homeState": zod.string(),
+  "managerId": zod.number().int().nullish(),
   "notes": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().optional()
 })).optional()
 })
 export const GetVirtualSuggestionsResponse = zod.array(GetVirtualSuggestionsResponseItem)
+
+
+/**
+ * @summary Ranked coverage-clock gaps for the current lens
+ */
+export const getCoverageSuggestionsQueryLensDefault = `my_team`;
+export const getCoverageSuggestionsQueryIncludeInactiveDefault = false;
+
+export const GetCoverageSuggestionsQueryParams = zod.object({
+  "lens": zod.enum(['my_team', 'departments', 'leader', 'hrbp', 'all']).default(getCoverageSuggestionsQueryLensDefault),
+  "departmentIds": zod.coerce.string().optional(),
+  "leaderId": zod.coerce.number().int().optional(),
+  "hrbpId": zod.coerce.number().int().optional(),
+  "includeInactive": zod.coerce.boolean().default(getCoverageSuggestionsQueryIncludeInactiveDefault)
+})
+
+export const GetCoverageSuggestionsResponse = zod.object({
+  "org": zod.object({
+  "hrbp_1on1": zod.number().int().optional(),
+  "leader_1on1": zod.number().int().optional(),
+  "skip_level": zod.number().int().optional(),
+  "onsite_leadership": zod.number().int().optional()
+}).optional(),
+  "people": zod.array(zod.object({
+  "person": zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "email": zod.string(),
+  "title": zod.string().nullish(),
+  "department": zod.string().nullish().describe('Department display name (derived from departmentId)'),
+  "departmentId": zod.number().int().nullish(),
+  "hrbpId": zod.number().int().nullish(),
+  "hrbpName": zod.string().nullish(),
+  "managerName": zod.string().nullish(),
+  "isHrbp": zod.boolean().optional(),
+  "status": zod.enum(['active', 'inactive']).optional(),
+  "role": zod.enum(['executive', 'secondary_leader', 'staff']),
+  "homeCity": zod.string(),
+  "homeState": zod.string(),
+  "managerId": zod.number().int().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date().optional()
+}).optional(),
+  "overdueCount": zod.number().int(),
+  "gaps": zod.array(zod.object({
+  "kind": zod.enum(['hrbp_1on1', 'leader_1on1', 'skip_level', 'onsite_leadership']),
+  "daysSince": zod.number().int().nullish(),
+  "thresholdDays": zod.number().int(),
+  "overdue": zod.boolean(),
+  "notApplicable": zod.boolean(),
+  "label": zod.string().optional()
+}))
+}))
+})
+
+
+/**
+ * @summary List HR-maintained departments
+ */
+export const ListDepartmentsResponseItem = zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "parentId": zod.number().int().nullish(),
+  "leadershipOneOnOneDays": zod.number().int().nullish(),
+  "skipLevelDays": zod.number().int().nullish(),
+  "createdAt": zod.coerce.date().optional(),
+  "updatedAt": zod.coerce.date().optional()
+})
+export const ListDepartmentsResponse = zod.array(ListDepartmentsResponseItem)
+
+
+/**
+ * @summary Create a department (admin)
+ */
+export const CreateDepartmentBody = zod.object({
+  "name": zod.string().optional(),
+  "parentId": zod.number().int().nullish(),
+  "leadershipOneOnOneDays": zod.number().int().nullish(),
+  "skipLevelDays": zod.number().int().nullish()
+})
+
+export const CreateDepartmentResponse = zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "parentId": zod.number().int().nullish(),
+  "leadershipOneOnOneDays": zod.number().int().nullish(),
+  "skipLevelDays": zod.number().int().nullish(),
+  "createdAt": zod.coerce.date().optional(),
+  "updatedAt": zod.coerce.date().optional()
+})
+
+
+/**
+ * @summary Update a department (admin)
+ */
+export const UpdateDepartmentParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const UpdateDepartmentBody = zod.object({
+  "name": zod.string().optional(),
+  "parentId": zod.number().int().nullish(),
+  "leadershipOneOnOneDays": zod.number().int().nullish(),
+  "skipLevelDays": zod.number().int().nullish()
+})
+
+export const UpdateDepartmentResponse = zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "parentId": zod.number().int().nullish(),
+  "leadershipOneOnOneDays": zod.number().int().nullish(),
+  "skipLevelDays": zod.number().int().nullish(),
+  "createdAt": zod.coerce.date().optional(),
+  "updatedAt": zod.coerce.date().optional()
+})
+
+
+/**
+ * @summary Delete a department (admin; blocked if people are assigned)
+ */
+export const DeleteDepartmentParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const DeleteDepartmentResponse = zod.void()
 
 

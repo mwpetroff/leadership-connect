@@ -6,27 +6,21 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
 import { UserCircle2, X as XIcon } from 'lucide-react';
-import type { Person } from '@workspace/api-client-react';
+import type { Person, PersonInput } from '@workspace/api-client-react';
+import { getListDepartmentsQueryKey, useListDepartments } from '@workspace/api-client-react';
 import { PersonPicker } from './PersonPicker';
 
 const schema = z.object({
   name: z.string().min(1, 'Name is required'),
   email: z.string().email('Valid email required'),
   title: z.string().optional().default(''),
-  department: z.string().optional().default(''),
   role: z.enum(['executive', 'secondary_leader', 'staff']),
   homeCity: z.string().min(1, 'City is required'),
   homeState: z.string().min(1, 'State required').max(2, 'Use 2-letter abbreviation').transform(v => v.toUpperCase()),
   notes: z.string().optional().default(''),
 });
 
-export type PersonFormValues = z.infer<typeof schema> & {
-  managerId?: number | null;
-  hrbpId?: number | null;
-  departmentId?: number | null;
-  isHrbp?: boolean;
-  status?: 'active' | 'inactive';
-};
+export type PersonFormValues = PersonInput;
 
 interface Props {
   open: boolean;
@@ -37,14 +31,13 @@ interface Props {
   mode: 'create' | 'edit';
 }
 
-const EMPTY: PersonFormValues = {
-  name: '', email: '', title: '', department: '',
-  role: 'staff', homeCity: '', homeState: '', notes: '',
-  managerId: null,
+const EMPTY = {
+  name: '', email: '', title: '',
+  role: 'staff' as const, homeCity: '', homeState: '', notes: '',
 };
 
 export function PersonForm({ open, onClose, onSubmit, isPending, defaultValues, mode }: Props) {
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<PersonFormValues>({
+  const { register, handleSubmit, reset, formState: { errors } } = useForm<z.infer<typeof schema>>({
     resolver: zodResolver(schema),
     defaultValues: EMPTY,
   });
@@ -58,33 +51,30 @@ export function PersonForm({ open, onClose, onSubmit, isPending, defaultValues, 
   const [isHrbp, setIsHrbp] = useState(false);
   const [status, setStatus] = useState<'active' | 'inactive'>('active');
   const [departmentId, setDepartmentId] = useState<number | null>(null);
-  const [departments, setDepartments] = useState<{ id: number; name: string }[]>([]);
+  const { data: departments = [] } = useListDepartments({
+    query: { enabled: open, queryKey: getListDepartmentsQueryKey() },
+  });
 
   useEffect(() => {
     if (!open) return;
-    fetch(`${import.meta.env.BASE_URL}api/departments`, { credentials: 'include' })
-      .then((r) => (r.ok ? r.json() : []))
-      .then(setDepartments)
-      .catch(() => setDepartments([]));
     if (defaultValues) {
       reset({
         name: defaultValues.name ?? '',
         email: defaultValues.email ?? '',
         title: defaultValues.title ?? '',
-        department: defaultValues.department ?? '',
         role: defaultValues.role ?? 'staff',
         homeCity: defaultValues.homeCity ?? '',
         homeState: defaultValues.homeState ?? '',
         notes: defaultValues.notes ?? '',
       });
-      const mid = (defaultValues as any).managerId ?? null;
+      const mid = defaultValues.managerId ?? null;
       setManagerId(mid);
-      setManagerName(mid ? ((defaultValues as any).managerName ?? null) : null);
-      setHrbpId((defaultValues as any).hrbpId ?? null);
-      setHrbpName((defaultValues as any).hrbpName ?? null);
-      setIsHrbp(Boolean((defaultValues as any).isHrbp));
-      setStatus((defaultValues as any).status === 'inactive' ? 'inactive' : 'active');
-      setDepartmentId((defaultValues as any).departmentId ?? null);
+      setManagerName(mid ? (defaultValues.managerName ?? null) : null);
+      setHrbpId(defaultValues.hrbpId ?? null);
+      setHrbpName(defaultValues.hrbpName ?? null);
+      setIsHrbp(Boolean(defaultValues.isHrbp));
+      setStatus(defaultValues.status === 'inactive' ? 'inactive' : 'active');
+      setDepartmentId(defaultValues.departmentId ?? null);
     } else {
       reset(EMPTY);
       setManagerId(null);
@@ -97,7 +87,7 @@ export function PersonForm({ open, onClose, onSubmit, isPending, defaultValues, 
     }
   }, [open, defaultValues, reset]);
 
-  const handleFormSubmit = (values: PersonFormValues) => {
+  const handleFormSubmit = (values: z.infer<typeof schema>) => {
     onSubmit({
       ...values,
       managerId: managerId ?? null,

@@ -5,6 +5,7 @@
  * Leadership Engagement Platform API
  * OpenAPI spec version: 0.1.0
  */
+import type { VirtualMeetingInputMeetingKind } from './virtualMeetingInputMeetingKind';
 import type { VirtualMeetingInputStatus } from './virtualMeetingInputStatus';
 
 export interface VirtualMeetingInput {
@@ -14,4 +15,5 @@ export interface VirtualMeetingInput {
   status?: VirtualMeetingInputStatus;
   notes?: string;
   hostId?: number;
+  meetingKind?: VirtualMeetingInputMeetingKind;
 }

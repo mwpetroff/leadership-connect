@@ -1,19 +1,6 @@
-import React, { useEffect, useState } from "react";
 import { useScope, type Lens } from "@/lib/scope";
 import { cn } from "@/lib/utils";
-
-interface Dept {
-  id: number;
-  name: string;
-  parentId: number | null;
-}
-
-interface Person {
-  id: number;
-  name: string;
-  isHrbp?: boolean;
-  role?: string;
-}
+import { useListDepartments, useListPeople } from "@workspace/api-client-react";
 
 const LENSES: { id: Lens; label: string }[] = [
   { id: "my_team", label: "My team" },
@@ -25,19 +12,8 @@ const LENSES: { id: Lens; label: string }[] = [
 
 export function ScopeBar() {
   const { scope, setScope } = useScope();
-  const [departments, setDepartments] = useState<Dept[]>([]);
-  const [people, setPeople] = useState<Person[]>([]);
-
-  useEffect(() => {
-    fetch(`${import.meta.env.BASE_URL}api/departments`, { credentials: "include" })
-      .then((r) => (r.ok ? r.json() : []))
-      .then(setDepartments)
-      .catch(() => setDepartments([]));
-    fetch(`${import.meta.env.BASE_URL}api/people?lens=all&includeInactive=false`, { credentials: "include" })
-      .then((r) => (r.ok ? r.json() : []))
-      .then(setPeople)
-      .catch(() => setPeople([]));
-  }, []);
+  const { data: departments = [] } = useListDepartments();
+  const { data: people = [] } = useListPeople({ lens: "all", includeInactive: false });
 
   const hrbps = people.filter((p) => p.isHrbp);
   const leaders = people.filter((p) => p.role === "executive" || p.role === "secondary_leader");

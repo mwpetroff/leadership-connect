@@ -5,7 +5,7 @@ import { z } from 'zod';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
-import { useListPeople } from '@workspace/api-client-react';
+import { useListPeople, getListPeopleQueryKey } from '@workspace/api-client-react';
 
 const schema = z.object({
   title: z.string().min(1, 'Title is required'),
@@ -39,8 +39,14 @@ export function VirtualMeetingForm({
     defaultValues: EMPTY(defaultTitle, defaultStatus),
   });
 
-  const { data: executives } = useListPeople({ role: 'executive' }, { query: { enabled: open } as any });
-  const { data: leaders } = useListPeople({ role: 'secondary_leader' }, { query: { enabled: open } as any });
+  const { data: executives } = useListPeople(
+    { role: 'executive' },
+    { query: { enabled: open, queryKey: getListPeopleQueryKey({ role: 'executive' }) } },
+  );
+  const { data: leaders } = useListPeople(
+    { role: 'secondary_leader' },
+    { query: { enabled: open, queryKey: getListPeopleQueryKey({ role: 'secondary_leader' }) } },
+  );
   const allHosts = [...(executives ?? []), ...(leaders ?? [])];
 
   useEffect(() => {

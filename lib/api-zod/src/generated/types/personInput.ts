@@ -6,17 +6,24 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { PersonInputRole } from './personInputRole';
+import type { PersonInputStatus } from './personInputStatus';
 
 export interface PersonInput {
   /** @minLength 1 */
   name: string;
   email: string;
   title?: string;
+  /** Department name; resolved to departmentId. Unknown names are rejected. */
   department?: string;
+  departmentId?: number | null;
+  hrbpId?: number | null;
+  isHrbp?: boolean;
+  status?: PersonInputStatus;
   role: PersonInputRole;
   /** @minLength 1 */
   homeCity: string;
   /** @minLength 1 */
   homeState: string;
+  managerId?: number | null;
   notes?: string;
 }

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from '@/components/ui/dialog';
-import { useListPeople } from '@workspace/api-client-react';
+import { useListPeople, getListPeopleQueryKey } from '@workspace/api-client-react';
 import { Search } from 'lucide-react';
 import type { Person } from '@workspace/api-client-react';
 
@@ -27,9 +27,10 @@ export function PersonPicker({
 
   // When multiRole is provided we fetch all and filter client-side, because the
   // API only accepts a single role parameter.
+  const peopleParams = { search, role: multiRole ? undefined : roleFilter };
   const { data: people, isLoading } = useListPeople(
-    { search, role: multiRole ? undefined : roleFilter },
-    { query: { enabled: open } as any }
+    peopleParams,
+    { query: { enabled: open, queryKey: getListPeopleQueryKey(peopleParams) } },
   );
 
   const filtered = (people ?? []).filter(

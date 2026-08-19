@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { Person } from './person';
+import type { VirtualMeetingMeetingKind } from './virtualMeetingMeetingKind';
 import type { VirtualMeetingStatus } from './virtualMeetingStatus';
 
 export interface VirtualMeeting {
@@ -30,6 +31,8 @@ export interface VirtualMeeting {
      * @nullable
      */
   graphMeetingId?: string | null;
+  /** Coverage-clock classification. general is the legacy default. */
+  meetingKind?: VirtualMeetingMeetingKind;
   createdAt: Date;
   updatedAt?: Date;
 }

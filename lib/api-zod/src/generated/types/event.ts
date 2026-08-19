@@ -6,6 +6,8 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { EventEventType } from './eventEventType';
+import type { EventPersonSummary } from './eventPersonSummary';
+import type { VenueSummary } from './venueSummary';
 
 export interface Event {
   id: number;
@@ -19,6 +21,16 @@ export interface Event {
   /** @nullable */
   endDate?: Date | null;
   eventType: EventEventType;
+  /** @nullable */
+  venueId?: number | null;
+  /** @nullable */
+  eveningVenueId?: number | null;
+  /** @nullable */
+  organizerId?: number | null;
+  venue?: VenueSummary;
+  eveningVenue?: VenueSummary;
+  sponsors?: EventPersonSummary[];
+  organizer?: EventPersonSummary;
   leaderCount?: number;
   inviteeCount?: number;
   attendeeCount?: number;

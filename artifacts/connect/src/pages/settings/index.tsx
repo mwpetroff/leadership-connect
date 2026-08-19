@@ -24,6 +24,11 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import {
+  useListDepartments,
+  useCreateDepartment,
+  getListDepartmentsQueryKey,
+} from '@workspace/api-client-react';
 import { Settings, Shield, ChevronDown, ChevronRight, AlertCircle, Building2, Pencil, Trash2, Plus, X, Check, Upload, FileText, CheckCircle2, AlertTriangle, Download } from 'lucide-react';
 import { formatDistanceToNow, parseISO } from 'date-fns';
 
@@ -1091,43 +1096,21 @@ function DepartmentsSection() {
   const [parentId, setParentId] = useState<string>('');
   const [leadDays, setLeadDays] = useState('');
   const [skipDays, setSkipDays] = useState('');
-  const { data: departments = [] } = useQuery<{ id: number; name: string; parentId: number | null; leadershipOneOnOneDays: number | null; skipLevelDays: number | null }[]>({
-    queryKey: ['departments'],
-    queryFn: async () => {
-      const res = await fetch(`${BASE}api/departments`, { credentials: 'include' });
-      if (!res.ok) throw new Error('Failed to load departments');
-      return res.json();
+  const { data: departments = [] } = useListDepartments();
+  const create = useCreateDepartment({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListDepartmentsQueryKey() });
+        setName('');
+        setParentId('');
+        setLeadDays('');
+        setSkipDays('');
+        toast({ title: 'Department created' });
+      },
+      onError: (e: Error) => toast({ title: 'Could not create department', description: e.message }),
     },
   });
-  const create = useMutation({
-    mutationFn: async () => {
-      const res = await fetch(`${BASE}api/departments`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name,
-          parentId: parentId ? Number(parentId) : null,
-          leadershipOneOnOneDays: leadDays ? Number(leadDays) : null,
-          skipLevelDays: skipDays ? Number(skipDays) : null,
-        }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({})) as { error?: string };
-        throw new Error(err.error ?? 'Create failed');
-      }
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['departments'] });
-      setName('');
-      setParentId('');
-      setLeadDays('');
-      setSkipDays('');
-      toast({ title: 'Department created' });
-    },
-    onError: (e: Error) => toast({ title: 'Could not create department', description: e.message }),
-  });
-  const parentName = (id: number | null) =>
+  const parentName = (id: number | null | undefined) =>
     id == null ? 'Division' : departments.find((d) => d.id === id)?.name ?? `Parent #${id}`;
 
   return (
@@ -1156,7 +1139,14 @@ function DepartmentsSection() {
           </Select>
           <Input placeholder="Leadership 1:1 days" type="number" value={leadDays} onChange={(e) => setLeadDays(e.target.value)} />
           <Input placeholder="Skip-level days" type="number" value={skipDays} onChange={(e) => setSkipDays(e.target.value)} />
-          <Button size="sm" disabled={!name.trim() || create.isPending} onClick={() => create.mutate()}>
+          <Button size="sm" disabled={!name.trim() || create.isPending} onClick={() => create.mutate({
+            data: {
+              name,
+              parentId: parentId ? Number(parentId) : null,
+              leadershipOneOnOneDays: leadDays ? Number(leadDays) : null,
+              skipLevelDays: skipDays ? Number(skipDays) : null,
+            },
+          })}>
             Add
           </Button>
         </div>
