@@ -6,6 +6,9 @@ packages:
 
 allowBuilds:
   esbuild: true
+  '@swc/core': true
+  msw: true
+  unrs-resolver: true
 
 autoInstallPeers: false
 
