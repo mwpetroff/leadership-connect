@@ -45,7 +45,7 @@ export default function LoginPage() {
         </div>
 
         <p className="text-center text-xs text-muted-foreground">
-          &copy; {new Date().getFullYear()} Leadership Connect
+          &copy; {new Date().getFullYear()} Touchpoint
         </p>
       </div>
     </div>

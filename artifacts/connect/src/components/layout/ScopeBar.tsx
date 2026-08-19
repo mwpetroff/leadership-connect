@@ -19,7 +19,7 @@ export function ScopeBar() {
   const leaders = people.filter((p) => p.role === "executive" || p.role === "secondary_leader");
 
   return (
-    <div className="rounded-2xl border border-border bg-card px-4 py-3 shadow-sm space-y-3">
+    <div id="scope-bar" className="rounded-2xl border border-border bg-card px-4 py-3 shadow-sm space-y-3">
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mr-1">View</span>
         {LENSES.map((l) => (

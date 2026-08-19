@@ -19,6 +19,9 @@ Product queue after the HRBP rework. HR business partners are the primary users;
 
 ## Recently completed
 
+- Coverage home has a role-aware “I want to…” starter (job chips, not a command palette); staff see a lighter Home
+- Login footer says Touchpoint; Settings no longer shows the org lens bar
+
 - HRBPs can edit a person and leaders/HRBPs can log a 1:1 from the profile (delete stays admin)
 - Four coverage clocks on each person profile
 - Header search on mobile
