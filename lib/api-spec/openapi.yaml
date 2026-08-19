@@ -26,6 +26,8 @@ tags:
     description: Operational configuration
   - name: auditLog
     description: Admin audit trail
+  - name: departments
+    description: HR-owned org units and per-department cadences
 
 paths:
   /healthz:
@@ -57,6 +59,11 @@ paths:
           name: search
           schema:
             type: string
+        - $ref: "#/components/parameters/Lens"
+        - $ref: "#/components/parameters/DepartmentIds"
+        - $ref: "#/components/parameters/LeaderId"
+        - $ref: "#/components/parameters/HrbpId"
+        - $ref: "#/components/parameters/IncludeInactive"
       responses:
         "200":
           description: List of people
@@ -716,6 +723,12 @@ paths:
       operationId: getDashboardSummary
       tags: [dashboard]
       summary: Get high-level engagement summary and stats
+      parameters:
+        - $ref: "#/components/parameters/Lens"
+        - $ref: "#/components/parameters/DepartmentIds"
+        - $ref: "#/components/parameters/LeaderId"
+        - $ref: "#/components/parameters/HrbpId"
+        - $ref: "#/components/parameters/IncludeInactive"
       responses:
         "200":
           description: Dashboard summary
@@ -755,7 +768,128 @@ paths:
                 items:
                   $ref: "#/components/schemas/VirtualSuggestion"
 
+  /suggestions/coverage:
+    get:
+      operationId: getCoverageSuggestions
+      tags: [suggestions]
+      summary: Ranked coverage-clock gaps for the current lens
+      parameters:
+        - $ref: "#/components/parameters/Lens"
+        - $ref: "#/components/parameters/DepartmentIds"
+        - $ref: "#/components/parameters/LeaderId"
+        - $ref: "#/components/parameters/HrbpId"
+        - $ref: "#/components/parameters/IncludeInactive"
+      responses:
+        "200":
+          description: People with overdue coverage clocks
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+
+  /departments:
+    get:
+      operationId: listDepartments
+      tags: [departments]
+      summary: List HR-maintained departments
+      responses:
+        "200":
+          description: Departments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Department"
+    post:
+      operationId: createDepartment
+      tags: [departments]
+      summary: Create a department (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DepartmentInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Department"
+
+  /departments/{id}:
+    patch:
+      operationId: updateDepartment
+      tags: [departments]
+      summary: Update a department (admin)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DepartmentInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Department"
+    delete:
+      operationId: deleteDepartment
+      tags: [departments]
+      summary: Delete a department (admin; blocked if people are assigned)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "409":
+          description: People still assigned
+
 components:
+  parameters:
+    Lens:
+      in: query
+      name: lens
+      schema:
+        type: string
+        enum: [my_team, departments, leader, hrbp, all]
+        default: my_team
+    DepartmentIds:
+      in: query
+      name: departmentIds
+      schema:
+        type: string
+        description: Comma-separated department ids (departments lens)
+    LeaderId:
+      in: query
+      name: leaderId
+      schema:
+        type: integer
+    HrbpId:
+      in: query
+      name: hrbpId
+      schema:
+        type: integer
+    IncludeInactive:
+      in: query
+      name: includeInactive
+      schema:
+        type: boolean
+        default: false
   schemas:
     HealthStatus:
       type: object
@@ -763,6 +897,42 @@ components:
       properties:
         status:
           type: string
+
+    Department:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        parentId:
+          type: ["integer", "null"]
+        leadershipOneOnOneDays:
+          type: ["integer", "null"]
+        skipLevelDays:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    DepartmentInput:
+      type: object
+      properties:
+        name:
+          type: string
+        parentId:
+          type: integer
+          nullable: true
+        leadershipOneOnOneDays:
+          type: integer
+          nullable: true
+        skipLevelDays:
+          type: integer
+          nullable: true
 
     # ─── Person ─────────────────────────────────────────────────────────────
     Person:
@@ -779,6 +949,20 @@ components:
           type: ["string", "null"]
         department:
           type: ["string", "null"]
+          description: Department display name (derived from departmentId)
+        departmentId:
+          type: ["integer", "null"]
+        hrbpId:
+          type: ["integer", "null"]
+        hrbpName:
+          type: ["string", "null"]
+        managerName:
+          type: ["string", "null"]
+        isHrbp:
+          type: boolean
+        status:
+          type: string
+          enum: [active, inactive]
         role:
           type: string
           enum: [executive, secondary_leader, staff]
@@ -810,6 +994,18 @@ components:
           type: string
         department:
           type: string
+          description: Department name; resolved to departmentId. Unknown names are rejected.
+        departmentId:
+          type: integer
+          nullable: true
+        hrbpId:
+          type: integer
+          nullable: true
+        isHrbp:
+          type: boolean
+        status:
+          type: string
+          enum: [active, inactive]
         role:
           type: string
           enum: [executive, secondary_leader, staff]
@@ -837,6 +1033,17 @@ components:
           type: string
         department:
           type: string
+        departmentId:
+          type: integer
+          nullable: true
+        hrbpId:
+          type: integer
+          nullable: true
+        isHrbp:
+          type: boolean
+        status:
+          type: string
+          enum: [active, inactive]
         role:
           type: string
           enum: [executive, secondary_leader, staff]

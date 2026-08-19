@@ -13,6 +13,7 @@ import officesRouter from "./offices";
 import orgChartRouter from "./orgChart";
 import searchRouter from "./search";
 import venuesRouter from "./venues";
+import departmentsRouter from "./departments";
 import { requireAuth, requireRole } from "../lib/auth";
 import { seedDefaults } from "../lib/settings-store";
 
@@ -35,29 +36,42 @@ router.use(requireAuth);
 //
 // Everything else that mutates state requires admin.
 
+// Leaders can suggest/update meetings, invite to events, and create venues.
+// HRBPs can also create/update people and run directory imports.
+// Department records and org settings remain admin (HR) only.
+
 const LEADER_WRITE_PATTERNS: Array<{ method: string; pattern: RegExp }> = [
   { method: "POST",  pattern: /^\/virtual-meetings$/ },
   { method: "PATCH", pattern: /^\/virtual-meetings\/[^/]+$/ },
   { method: "POST",  pattern: /^\/virtual-meetings\/[^/]+\/participants$/ },
-  // Single invitation create/update
   { method: "POST",  pattern: /^\/events\/[^/]+\/invitations$/ },
   { method: "PATCH", pattern: /^\/invitations\/[^/]+$/ },
-  // Bulk invitation operations (leaders can bulk-invite and mark attendance)
   { method: "POST",  pattern: /^\/events\/[^/]+\/invitations\/bulk$/ },
   { method: "PATCH", pattern: /^\/events\/[^/]+\/invitations\/bulk$/ },
-  // Venue creation (leaders can create venues when building events)
   { method: "POST",  pattern: /^\/venues$/ },
+];
+
+const HRBP_WRITE_PATTERNS: Array<{ method: string; pattern: RegExp }> = [
+  { method: "POST", pattern: /^\/people$/ },
+  { method: "PATCH", pattern: /^\/people\/[^/]+$/ },
+  { method: "POST", pattern: /^\/people\/import$/ },
 ];
 
 router.use((req, res, next) => {
   if (!["POST", "PUT", "PATCH", "DELETE"].includes(req.method)) {
-    return next(); // GET/HEAD — any authenticated user
+    return next();
   }
   const isLeaderOp = LEADER_WRITE_PATTERNS.some(
     (r) => r.method === req.method && r.pattern.test(req.path),
   );
   if (isLeaderOp) {
     return requireRole("leader")(req, res, next);
+  }
+  const isHrbpOp = HRBP_WRITE_PATTERNS.some(
+    (r) => r.method === req.method && r.pattern.test(req.path),
+  );
+  if (isHrbpOp) {
+    return requireRole("hrbp")(req, res, next);
   }
   return requireRole("admin")(req, res, next);
 });
@@ -78,5 +92,6 @@ router.use(officesRouter);
 router.use(orgChartRouter);
 router.use(searchRouter);
 router.use(venuesRouter);
+router.use(departmentsRouter);
 
 export default router;

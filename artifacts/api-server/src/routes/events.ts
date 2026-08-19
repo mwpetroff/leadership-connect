@@ -29,6 +29,8 @@ import {
   RemoveEventSponsorParams,
 } from "@workspace/api-zod";
 import { logAudit } from "../lib/audit";
+import { eventTouchesScope } from "../lib/scope";
+import { resolveRequestFocus } from "../lib/scope-request";
 
 const router: IRouter = Router();
 
@@ -65,6 +67,13 @@ async function eventWithCounts(event: typeof eventsTable.$inferSelect) {
   const pickVenue = (v: typeof venuesTable.$inferSelect | null) =>
     v ? { id: v.id, name: v.name, address: v.address, city: v.city, state: v.state, zipCode: v.zipCode, webLink: v.webLink, notes: v.notes } : null;
 
+  const touchPersonIds = [
+    ...leaders.map((l) => l.personId),
+    ...invitations.map((i) => i.personId),
+    organizerRow?.id,
+    ...sponsorRows.map((s) => s.id),
+  ].filter((id): id is number => typeof id === "number");
+
   return {
     ...event,
     sponsors:     sponsorRows,
@@ -74,7 +83,13 @@ async function eventWithCounts(event: typeof eventsTable.$inferSelect) {
     leaderCount:  leaders.length,
     inviteeCount: invitations.length,
     attendeeCount: invitations.filter((i) => i.status === "attended").length,
+    touchPersonIds,
   };
+}
+
+function publicEvent<T extends { touchPersonIds?: number[] }>(event: T) {
+  const { touchPersonIds: _ids, ...rest } = event;
+  return rest;
 }
 
 router.get("/events", async (req, res): Promise<void> => {
@@ -100,7 +115,17 @@ router.get("/events", async (req, res): Promise<void> => {
       : await db.select().from(eventsTable).orderBy(eventsTable.startDate);
 
   const enriched = await Promise.all(events.map(eventWithCounts));
-  res.json(enriched);
+  if (enriched.length === 0) {
+    res.json([]);
+    return;
+  }
+
+  const { scope, focus } = await resolveRequestFocus(req);
+  const visible =
+    scope.lens === "all"
+      ? enriched
+      : enriched.filter((event) => eventTouchesScope(event.touchPersonIds, focus));
+  res.json(visible.map(publicEvent));
 });
 
 router.post("/events", async (req, res): Promise<void> => {
@@ -161,7 +186,7 @@ router.post("/events", async (req, res): Promise<void> => {
   }
 
   logAudit(req, "create", "event", event.id, null, event);
-  res.status(201).json(await eventWithCounts(event));
+  res.status(201).json(publicEvent(await eventWithCounts(event)));
 });
 
 router.get("/events/:id", async (req, res): Promise<void> => {
@@ -177,7 +202,7 @@ router.get("/events/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  res.json(await eventWithCounts(event));
+  res.json(publicEvent(await eventWithCounts(event)));
 });
 
 router.patch("/events/:id", async (req, res): Promise<void> => {
@@ -241,7 +266,7 @@ router.patch("/events/:id", async (req, res): Promise<void> => {
   }
 
   logAudit(req, "update", "event", event.id, before ?? null, event);
-  res.json(await eventWithCounts(event));
+  res.json(publicEvent(await eventWithCounts(event)));
 });
 
 router.delete("/events/:id", async (req, res): Promise<void> => {
@@ -557,7 +582,7 @@ router.get("/events/:id/nearby-uninvited", async (req, res): Promise<void> => {
       email: p.email,
       title: p.title,
       role: p.role,
-      department: p.department,
+      department: null,
       homeCity: p.homeCity,
       homeState: p.homeState,
       distanceMiles: Math.round(haversineMiles(eLat, eLng, p.lat!, p.lng!) * 10) / 10,

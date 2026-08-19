@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'wouter';
 import { ChevronRight, ChevronDown, Search, Users, GitBranch } from 'lucide-react';
+import { useScope } from '@/lib/scope';
 import { cn } from '@/lib/utils';
 
 interface OrgNode {
@@ -14,6 +15,9 @@ interface OrgNode {
   homeState: string;
   email: string;
   managerId: number | null;
+  hrbpId: number | null;
+  hrbpName: string | null;
+  muted: boolean;
   children: OrgNode[];
 }
 
@@ -78,6 +82,7 @@ function TreeNode({ node, depth, search, defaultOpen = false }: TreeNodeProps) {
     <div className={cn('relative', depth > 0 && 'ml-6 pl-4 border-l border-border/60')}>
       <div className={cn(
         'group flex items-center gap-3 py-2 px-3 rounded-xl transition-colors hover:bg-muted/50',
+        node.muted && 'opacity-60',
         search && selfMatches && 'bg-primary/5',
       )}>
         {/* Expand toggle */}
@@ -112,7 +117,11 @@ function TreeNode({ node, depth, search, defaultOpen = false }: TreeNodeProps) {
           </div>
         </div>
 
-        {/* Role badge */}
+        {node.muted && node.hrbpName && (
+          <span className="shrink-0 text-[11px] text-muted-foreground">
+            HRBP: {node.hrbpName}
+          </span>
+        )}
         <span className={cn('shrink-0 text-xs font-medium px-2 py-0.5 rounded-full', rc.bg, rc.text)}>
           {rc.label}
         </span>
@@ -143,13 +152,44 @@ function TreeNode({ node, depth, search, defaultOpen = false }: TreeNodeProps) {
   );
 }
 
+function BoxNode({ node }: { node: OrgNode }) {
+  const rc = ROLE_CONFIG[node.role] ?? ROLE_CONFIG.staff;
+  return (
+    <div className="flex flex-col items-center">
+      <Link
+        href={`/people/${node.id}`}
+        className={cn(
+          'min-w-[160px] max-w-[200px] rounded-xl border px-3 py-2 text-center shadow-sm bg-card',
+          node.muted ? 'border-dashed opacity-60' : 'border-border',
+        )}
+      >
+        <div className="text-sm font-semibold truncate">{node.name}</div>
+        <div className="text-[11px] text-muted-foreground truncate">{node.title ?? 'No title'}</div>
+        <div className={cn('mt-1 inline-block text-[10px] font-medium px-1.5 py-0.5 rounded-full', rc.bg, rc.text)}>
+          {rc.label}
+        </div>
+        {node.muted && node.hrbpName && (
+          <div className="text-[10px] text-muted-foreground mt-1">HRBP: {node.hrbpName}</div>
+        )}
+      </Link>
+      {node.children.length > 0 && (
+        <div className="mt-4 flex flex-wrap justify-center gap-6 border-t border-border/60 pt-4">
+          {node.children.map((c) => <BoxNode key={c.id} node={c} />)}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function OrgChart() {
   const [search, setSearch] = useState('');
+  const [view, setView] = useState<'tree' | 'boxes'>('tree');
+  const { queryString } = useScope();
 
   const { data, isLoading } = useQuery<OrgChartResponse>({
-    queryKey: ['org-chart'],
+    queryKey: ['org-chart', queryString],
     queryFn: async () => {
-      const res = await fetch(`${import.meta.env.BASE_URL}api/org-chart`, { credentials: 'include' });
+      const res = await fetch(`${import.meta.env.BASE_URL}api/org-chart?${queryString}`, { credentials: 'include' });
       if (!res.ok) throw new Error('Failed to load org chart');
       return res.json();
     },
@@ -177,8 +217,12 @@ export default function OrgChart() {
           </h1>
           <p className="text-muted-foreground mt-1">
             Reporting structure across the organisation.
-            {data && <> {data.total} people total.</>}
+            {data && <> {data.total} people in focus.</>}
           </p>
+        </div>
+        <div className="flex gap-2">
+          <button type="button" onClick={() => setView('tree')} className={cn('px-3 py-1.5 rounded-lg text-sm', view === 'tree' ? 'bg-primary text-primary-foreground' : 'bg-muted')}>Tree</button>
+          <button type="button" onClick={() => setView('boxes')} className={cn('px-3 py-1.5 rounded-lg text-sm', view === 'boxes' ? 'bg-primary text-primary-foreground' : 'bg-muted')}>Boxes</button>
         </div>
       </div>
 
@@ -214,10 +258,18 @@ export default function OrgChart() {
           <p>{search ? 'No people match your search.' : 'No org chart data yet. Add people and assign managers to build the hierarchy.'}</p>
         </div>
       ) : (
-        <div className="bg-card border border-border rounded-2xl p-4 shadow-sm space-y-1">
-          {visibleRoots.map(node => (
-            <TreeNode key={node.id} node={node} depth={0} search={search} />
-          ))}
+        <div className="bg-card border border-border rounded-2xl p-4 shadow-sm overflow-x-auto">
+          {view === 'boxes' ? (
+            <div className="flex flex-wrap justify-center gap-8 py-4">
+              {visibleRoots.map(node => <BoxNode key={node.id} node={node} />)}
+            </div>
+          ) : (
+            <div className="space-y-1">
+              {visibleRoots.map(node => (
+                <TreeNode key={node.id} node={node} depth={0} search={search} />
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>

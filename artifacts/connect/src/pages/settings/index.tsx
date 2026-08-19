@@ -203,7 +203,10 @@ function EngagementRulesSection({ settings }: { settings: Setting[] }) {
   const queryClient = useQueryClient();
   const get = (key: string) => settings.find((s) => s.key === key)?.value ?? '';
 
-  const [threshold, setThreshold] = useState(get('touchpoint_threshold_days'));
+  const [hrbpDays, setHrbpDays] = useState(get('hrbp_1on1_days') || '30');
+  const [leaderDays, setLeaderDays] = useState(get('leadership_1on1_days') || '14');
+  const [skipDays, setSkipDays] = useState(get('skip_level_days') || '90');
+  const [onsiteDays, setOnsiteDays] = useState(get('onsite_leadership_days') || '180');
   const [radius, setRadius] = useState(get('suggestion_radius'));
   const [inviteRadius, setInviteRadius] = useState(get('invite_radius_miles') || '50');
   const [isDirty, setIsDirty] = useState(false);
@@ -216,7 +219,10 @@ function EngagementRulesSection({ settings }: { settings: Setting[] }) {
   const save = useMutation({
     mutationFn: async () => {
       await Promise.all([
-        patchSetting('touchpoint_threshold_days', threshold),
+        patchSetting('hrbp_1on1_days', hrbpDays),
+        patchSetting('leadership_1on1_days', leaderDays),
+        patchSetting('skip_level_days', skipDays),
+        patchSetting('onsite_leadership_days', onsiteDays),
         patchSetting('suggestion_radius', radius),
         patchSetting('invite_radius_miles', inviteRadius),
       ]);
@@ -234,28 +240,36 @@ function EngagementRulesSection({ settings }: { settings: Setting[] }) {
       <CardHeader>
         <CardTitle className="text-base">Engagement Rules</CardTitle>
         <CardDescription>
-          Controls when staff appear on the "needs touchpoint" list and in virtual suggestions.
+          Controls the four coverage clocks. Leadership and skip-level defaults apply when a department does not override them.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
-        <div className="space-y-2">
-          <Label htmlFor="threshold">Touchpoint threshold (days)</Label>
-          <div className="flex items-center gap-3 max-w-xs">
-            <Input
-              id="threshold"
-              type="number"
-              min={1}
-              max={365}
-              value={threshold}
-              onChange={(e) => { setThreshold(e.target.value); setIsDirty(true); }}
-            />
-            <span className="text-sm text-muted-foreground">days</span>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Staff with no touchpoint in this many days are flagged on the dashboard and suggestions hub.
-            Currently: <strong>{thresholdFromProps} days</strong>.
-          </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {([
+            ['hrbpDays', 'HRBP 1:1 (org default)', hrbpDays, setHrbpDays],
+            ['leaderDays', 'Leadership 1:1 (org default)', leaderDays, setLeaderDays],
+            ['skipDays', 'Skip-level 1:1 (org default)', skipDays, setSkipDays],
+            ['onsiteDays', 'Onsite × leadership (org default)', onsiteDays, setOnsiteDays],
+          ] as const).map(([id, label, value, setter]) => (
+            <div key={id} className="space-y-2">
+              <Label htmlFor={id}>{label}</Label>
+              <div className="flex items-center gap-3">
+                <Input
+                  id={id}
+                  type="number"
+                  min={1}
+                  max={365}
+                  value={value}
+                  onChange={(e) => { setter(e.target.value); setIsDirty(true); }}
+                />
+                <span className="text-sm text-muted-foreground">days</span>
+              </div>
+            </div>
+          ))}
         </div>
+        <p className="text-xs text-muted-foreground">
+          Department records can override leadership and skip-level cadences. HRBP and onsite clocks are organisation-wide.
+        </p>
 
         <div className="space-y-2">
           <Label htmlFor="inviteRadius">Event invite radius (miles)</Label>
@@ -736,9 +750,9 @@ interface ImportResult {
 }
 
 const CSV_TEMPLATE = [
-  'name,email,role,title,department,homeCity,homeState',
-  'Jane Smith,jane.smith@example.com,staff,Senior Engineer,Engineering,Austin,TX',
-  'John Doe,john.doe@example.com,executive,VP of Sales,Sales,New York,NY',
+  'name,email,role,title,department,managerEmail,hrbpEmail,isHrbp,homeCity,homeState,status',
+  'Priya Shah,priya.shah@example.com,staff,HR Business Partner,People Operations,,,true,Austin,TX,active',
+  'Jane Smith,jane.smith@example.com,staff,Senior Engineer,Modern Apps,jordan.lee@example.com,priya.shah@example.com,false,Austin,TX,active',
 ].join('\n');
 
 function downloadTemplate() {
@@ -1071,12 +1085,107 @@ function AuditLogTab() {
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
+function DepartmentsSection() {
+  const queryClient = useQueryClient();
+  const [name, setName] = useState('');
+  const [parentId, setParentId] = useState<string>('');
+  const [leadDays, setLeadDays] = useState('');
+  const [skipDays, setSkipDays] = useState('');
+  const { data: departments = [] } = useQuery<{ id: number; name: string; parentId: number | null; leadershipOneOnOneDays: number | null; skipLevelDays: number | null }[]>({
+    queryKey: ['departments'],
+    queryFn: async () => {
+      const res = await fetch(`${BASE}api/departments`, { credentials: 'include' });
+      if (!res.ok) throw new Error('Failed to load departments');
+      return res.json();
+    },
+  });
+  const create = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`${BASE}api/departments`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name,
+          parentId: parentId ? Number(parentId) : null,
+          leadershipOneOnOneDays: leadDays ? Number(leadDays) : null,
+          skipLevelDays: skipDays ? Number(skipDays) : null,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({})) as { error?: string };
+        throw new Error(err.error ?? 'Create failed');
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['departments'] });
+      setName('');
+      setParentId('');
+      setLeadDays('');
+      setSkipDays('');
+      toast({ title: 'Department created' });
+    },
+    onError: (e: Error) => toast({ title: 'Could not create department', description: e.message }),
+  });
+  const parentName = (id: number | null) =>
+    id == null ? 'Division' : departments.find((d) => d.id === id)?.name ?? `Parent #${id}`;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Departments</CardTitle>
+        <CardDescription>
+          HR maintains this list. People import will skip rows whose department name is not here.
+          Leadership and skip-level cadences on a department override the organisation defaults.
+          A parent row is the division (for example AI & Digital Solutions).
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
+          <Input placeholder="Name (e.g. Modern Apps)" value={name} onChange={(e) => setName(e.target.value)} />
+          <Select value={parentId || 'none'} onValueChange={(v) => setParentId(v === 'none' ? '' : v)}>
+            <SelectTrigger>
+              <SelectValue placeholder="Division / parent" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">No parent (this is a division)</SelectItem>
+              {departments.map((d) => (
+                <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Input placeholder="Leadership 1:1 days" type="number" value={leadDays} onChange={(e) => setLeadDays(e.target.value)} />
+          <Input placeholder="Skip-level days" type="number" value={skipDays} onChange={(e) => setSkipDays(e.target.value)} />
+          <Button size="sm" disabled={!name.trim() || create.isPending} onClick={() => create.mutate()}>
+            Add
+          </Button>
+        </div>
+        <div className="divide-y border rounded-lg">
+          {departments.map((d) => (
+            <div key={d.id} className="px-3 py-2 text-sm flex justify-between gap-3">
+              <div>
+                <span className="font-medium">{d.name}</span>
+                <span className="text-muted-foreground text-xs ml-2">{parentName(d.parentId)}</span>
+              </div>
+              <span className="text-muted-foreground text-xs">
+                L1:1 {d.leadershipOneOnOneDays ?? 'org default'} · Skip {d.skipLevelDays ?? 'org default'}
+              </span>
+            </div>
+          ))}
+          {departments.length === 0 && (
+            <div className="px-3 py-6 text-sm text-muted-foreground">No departments yet.</div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function SettingsPage() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, isHrbp } = useAuth();
   const [, navigate] = useLocation();
 
-  // Redirect non-admins
-  if (!isAdmin) {
+  if (!isAdmin && !isHrbp) {
     navigate('/');
     return null;
   }
@@ -1098,13 +1207,14 @@ export default function SettingsPage() {
         </div>
         <Badge variant="secondary" className="ml-auto flex items-center gap-1">
           <Shield className="h-3 w-3" />
-          Admin only
+          HRBP + admin
         </Badge>
       </div>
 
       <Tabs defaultValue="config">
         <TabsList>
           <TabsTrigger value="config">Configuration</TabsTrigger>
+          <TabsTrigger value="departments">Departments</TabsTrigger>
           <TabsTrigger value="offices">Offices</TabsTrigger>
           <TabsTrigger value="import">Import People</TabsTrigger>
           <TabsTrigger value="audit">Audit Log</TabsTrigger>
@@ -1120,6 +1230,10 @@ export default function SettingsPage() {
               <NotificationsSection />
             </>
           )}
+        </TabsContent>
+
+        <TabsContent value="departments" className="mt-4">
+          <DepartmentsSection />
         </TabsContent>
 
         <TabsContent value="offices" className="mt-4">

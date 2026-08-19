@@ -8,6 +8,7 @@ import {
   buildSessionUser,
   DEV_ADMIN_USER,
 } from "../lib/auth";
+import { resolveViewer, enrichAuthUser } from "../lib/viewer";
 
 const router = Router();
 
@@ -47,17 +48,19 @@ export function validateCallbackState(
 }
 
 // GET /me — returns the current session user or 401
-router.get("/me", (req, res) => {
+router.get("/me", async (req, res) => {
   if (devBypassEnabled) {
-    // Dev-only: return the synthetic admin user so the frontend can render.
-    res.json(DEV_ADMIN_USER);
+    const viewer = await resolveViewer({ ...req, user: DEV_ADMIN_USER } as typeof req);
+    res.json(enrichAuthUser(DEV_ADMIN_USER, viewer));
     return;
   }
   if (!req.session.user) {
     res.status(401).json({ error: "Unauthorized" });
     return;
   }
-  res.json(req.session.user);
+  req.user = req.session.user;
+  const viewer = await resolveViewer(req);
+  res.json(enrichAuthUser(req.session.user, viewer));
 });
 
 // GET /login — start the OAuth2 / PKCE flow

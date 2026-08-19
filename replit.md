@@ -1,10 +1,11 @@
-# Leadership Connect
+# Touchpoint
 
-A leadership engagement platform that helps executives and secondary leaders stay connected with staff through smart in-person meetup suggestions and virtual touchpoint tracking.
+An HRBP workspace for coverage and engagement across a ~600–700 person organisation. HR business partners are the primary users; executives and secondary leaders remain secondary.
 
 ## Documentation
 
 - `BACKLOG.md` — GitHub-friendly snapshot of the current product backlog
+- `docs/TOUCHPOINT.md` — HRBP lenses, departments, import rules, and coverage clocks
 - `.local/tasks/` — Replit's internal task specifications (intentionally not committed)
 
 ## Run & Operate
@@ -31,9 +32,11 @@ A leadership engagement platform that helps executives and secondary leaders sta
 ## Where things live
 
 - `lib/api-spec/openapi.yaml` — single source of truth for all API contracts
-- `lib/db/src/schema/` — Drizzle table definitions (people, events, venues, eventLeaders, eventSponsors, invitations, virtualMeetings, virtualMeetingParticipants)
-- `artifacts/api-server/src/routes/` — Express route handlers (auth, people, events, venues, invitations, virtualMeetings, dashboard, suggestions, search)
-- `artifacts/connect/src/pages/` — React pages (dashboard, people, events, virtual-meetings, suggestions)
+- `lib/db/src/schema/` — Drizzle table definitions (people, departments, events, venues, eventLeaders, eventSponsors, invitations, virtualMeetings, virtualMeetingParticipants)
+- `artifacts/api-server/src/routes/` — Express route handlers (auth, people, departments, events, venues, invitations, virtualMeetings, dashboard, suggestions, search, orgChart, mapData)
+- `artifacts/api-server/src/lib/` — Lens (`scope.ts`), coverage clocks (`coverage.ts`), CSV import rules (`import-people.ts`)
+- `artifacts/connect/src/pages/` — React pages (dashboard, people, org-chart, events, virtual-meetings, suggestions, map, settings)
+- `docs/TOUCHPOINT.md` — HRBP product rules (lenses, cadences, import)
 - `lib/api-client-react/src/generated/` — generated React Query hooks (do not edit)
 - `lib/api-zod/src/generated/` — generated Zod validation schemas (do not edit)
 
@@ -41,7 +44,8 @@ A leadership engagement platform that helps executives and secondary leaders sta
 
 - OpenAPI-first: spec drives codegen which drives both frontend hooks and backend Zod validators
 - `zod.int()` is not valid in Zod v3 — if re-running codegen, run `sed -i 's/zod\.int()/zod.number().int()/g' lib/api-zod/src/generated/api.ts` to patch the generated file
-- People roles: `executive`, `secondary_leader`, `staff` — suggestions only target `staff` for touchpoint gaps
+- People roles: `executive`, `secondary_leader`, `staff` — HRBPs are a directory flag (`isHrbp`) plus app role `hrbp`
+- Coverage uses four clocks (HRBP 1:1, leadership 1:1, skip-level, onsite × leadership); leadership/skip cadences are per department
 - Suggestions use state-level proximity matching (same state → same city ranked higher); no geocoding
 - "Needs touchpoint" threshold: 90 days without in-person attendance or completed virtual meeting
 - Event organizers remain a single person relationship; event sponsors use the `event_sponsors` junction table so each event can have multiple sponsors
@@ -50,11 +54,12 @@ A leadership engagement platform that helps executives and secondary leaders sta
 
 ## Product
 
-- **Dashboard**: KPI cards, priority virtual touchpoints, upcoming in-person opportunities, recent activity feed
-- **People**: Searchable/filterable directory by role; per-person engagement history
+- **Dashboard**: Four coverage-clock counts for the current lens, ranked engagement risks
+- **People**: Directory scoped to My team / department / leader / HRBP / everyone; inactive (FMLA) filter
+- **Org Chart**: Tree and box views with muted out-of-scope managers
 - **Events**: In-person events with type, reusable venues, organizers, multiple sponsors, leader roster, invitation list, attendance tracking
-- **Virtual Meetings**: Manage suggested/scheduled/completed virtual touchpoints with participants
-- **Suggestions Hub**: Two-panel triage — in-person meetup suggestions by event location, virtual suggestions for gap staff
+- **Virtual Meetings**: 1:1s classified for coverage clocks (`hrbp_1on1`, `leader_1on1`, `skip_level`)
+- **Suggestions Hub**: Close a specific coverage gap
 - **Search**: Authenticated grouped global search across people, events, and meetings
 
 ## User preferences

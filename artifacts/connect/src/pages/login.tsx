@@ -7,10 +7,10 @@ export default function LoginPage() {
         {/* Logo */}
         <div className="flex flex-col items-center gap-3">
           <div className="h-12 w-12 rounded-xl bg-primary flex items-center justify-center text-primary-foreground font-bold text-2xl select-none">
-            L
+            T
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground font-display">
-            Leadership Connect
+            Touchpoint
           </h1>
           <p className="text-sm text-muted-foreground text-center">
             Sign in with your Microsoft 365 organisation account to continue.

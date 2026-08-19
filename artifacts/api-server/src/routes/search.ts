@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { ilike, or } from "drizzle-orm";
-import { db, peopleTable, eventsTable, virtualMeetingsTable } from "@workspace/db";
+import { db, peopleTable, eventsTable, virtualMeetingsTable, virtualMeetingParticipantsTable } from "@workspace/db";
+import { resolveRequestFocus } from "../lib/scope-request";
 
 const router: IRouter = Router();
 
@@ -26,7 +27,6 @@ router.get("/search", async (req, res) => {
           name: peopleTable.name,
           email: peopleTable.email,
           title: peopleTable.title,
-          department: peopleTable.department,
           role: peopleTable.role,
         })
         .from(peopleTable)
@@ -34,7 +34,7 @@ router.get("/search", async (req, res) => {
           or(
             ilike(peopleTable.name, term),
             ilike(peopleTable.email, term),
-            ilike(peopleTable.department, term),
+            ilike(peopleTable.title, term),
           ),
         )
         .limit(5),
@@ -74,7 +74,30 @@ router.get("/search", async (req, res) => {
         .limit(5),
     ]);
 
-    res.json({ people, events, virtualMeetings });
+    const { scope, focus } = await resolveRequestFocus(req);
+    const scopedPeople =
+      scope.lens === "all" ? people : people.filter((p) => focus.has(p.id));
+
+    let scopedMeetings = virtualMeetings;
+    if (scope.lens !== "all" && virtualMeetings.length > 0) {
+      const parts = await db
+        .select({
+          meetingId: virtualMeetingParticipantsTable.meetingId,
+          personId: virtualMeetingParticipantsTable.personId,
+        })
+        .from(virtualMeetingParticipantsTable);
+      const byMeeting = new Map<number, number[]>();
+      for (const part of parts) {
+        const list = byMeeting.get(part.meetingId) ?? [];
+        list.push(part.personId);
+        byMeeting.set(part.meetingId, list);
+      }
+      scopedMeetings = virtualMeetings.filter((m) =>
+        (byMeeting.get(m.id) ?? []).some((id) => focus.has(id)),
+      );
+    }
+
+    res.json({ people: scopedPeople, events, virtualMeetings: scopedMeetings });
   } catch (err) {
     console.error("[search] error:", err);
     res.status(500).json({ error: "Search failed" });

@@ -26,6 +26,8 @@ import {
   cancelTeamsMeeting,
   updateTeamsMeeting,
 } from "../lib/graph";
+import { eventTouchesScope } from "../lib/scope";
+import { resolveRequestFocus } from "../lib/scope-request";
 
 const router: IRouter = Router();
 
@@ -49,6 +51,10 @@ async function meetingWithMeta(meeting: typeof virtualMeetingsTable.$inferSelect
     ...meeting,
     host,
     participantCount: participants.length,
+    touchPersonIds: [
+      ...participants.map((p) => p.personId),
+      meeting.hostId,
+    ].filter((id): id is number => typeof id === "number"),
   };
 }
 
@@ -126,7 +132,19 @@ router.get("/virtual-meetings", async (req, res): Promise<void> => {
     : await db.select().from(virtualMeetingsTable).orderBy(virtualMeetingsTable.scheduledDate);
 
   const enriched = await Promise.all(meetings.map(meetingWithMeta));
-  res.json(enriched);
+  if (enriched.length === 0) {
+    res.json([]);
+    return;
+  }
+
+  const { scope, focus } = await resolveRequestFocus(req);
+  const visible =
+    scope.lens === "all"
+      ? enriched
+      : enriched.filter((m) => eventTouchesScope(m.touchPersonIds, focus));
+  res.json(
+    visible.map(({ touchPersonIds: _ids, ...rest }) => rest),
+  );
 });
 
 router.post("/virtual-meetings", async (req, res): Promise<void> => {
@@ -141,6 +159,11 @@ router.post("/virtual-meetings", async (req, res): Promise<void> => {
     .values({
       ...parsed.data,
       scheduledDate: parsed.data.scheduledDate ? toDateStr(parsed.data.scheduledDate) : undefined,
+      meetingKind: ["general", "hrbp_1on1", "leader_1on1", "skip_level"].includes(
+        String((req.body as { meetingKind?: string }).meetingKind),
+      )
+        ? (req.body as { meetingKind: "general" | "hrbp_1on1" | "leader_1on1" | "skip_level" }).meetingKind
+        : "general",
     })
     .returning();
 

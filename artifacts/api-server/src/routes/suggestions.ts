@@ -17,6 +17,9 @@ import {
   sortByTouchpointGap,
 } from "../lib/suggestion-logic";
 import { getTouchpointThresholdDays, getSetting } from "../lib/settings-store";
+import { parseScopeQuery, effectiveScope, inFocusIds } from "../lib/scope";
+import { resolveViewer } from "../lib/viewer";
+import { loadCoverageSnapshot } from "../lib/coverage-data";
 
 const router: IRouter = Router();
 
@@ -175,6 +178,33 @@ router.get("/suggestions/virtual", async (_req, res): Promise<void> => {
   }));
 
   res.json(suggestions);
+});
+
+router.get("/suggestions/coverage", async (req, res): Promise<void> => {
+  const people = await db.select().from(peopleTable);
+  const viewer = await resolveViewer(req);
+  const scope = effectiveScope(parseScopeQuery(req.query as Record<string, unknown>), viewer);
+  const focus = inFocusIds(
+    people.map((p) => ({
+      id: p.id,
+      managerId: p.managerId,
+      departmentId: p.departmentId,
+      hrbpId: p.hrbpId,
+      status: p.status ?? "active",
+    })),
+    scope,
+    viewer,
+  );
+  const snapshot = await loadCoverageSnapshot(focus);
+  const personById = new Map(people.map((p) => [p.id, p]));
+  res.json({
+    org: snapshot.org,
+    people: snapshot.rows.map((row) => ({
+      person: personById.get(row.personId),
+      overdueCount: row.overdueCount,
+      gaps: row.gaps,
+    })),
+  });
 });
 
 export default router;

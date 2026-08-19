@@ -47,7 +47,13 @@ vi.mock('@workspace/db', () => ({
   db: mockDb,
   invitationsTable: { id: 'id', eventId: 'eventId', personId: 'personId', status: 'status' },
   peopleTable: { id: 'id' },
+  departmentsTable: { id: 'id', name: 'name' },
   eventsTable: { id: 'id' },
+  eventLeadersTable: {},
+  virtualMeetingsTable: {},
+  virtualMeetingParticipantsTable: {},
+  settingsTable: { key: 'key', value: 'value' },
+  auditLogTable: {},
 }));
 
 vi.mock('drizzle-orm', () => ({

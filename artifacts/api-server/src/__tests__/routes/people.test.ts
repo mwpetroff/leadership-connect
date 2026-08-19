@@ -57,6 +57,7 @@ vi.mock('@workspace/db', () => ({
     homeCity: 'homeCity',
     homeState: 'homeState',
   },
+  departmentsTable: { id: 'id', name: 'name' },
   eventsTable: {
     id: 'id',
     startDate: 'startDate',
@@ -164,7 +165,6 @@ describe('POST /api/people', () => {
     name: 'Jane Smith',
     email: 'jane@company.com',
     title: 'Engineer',
-    department: 'Engineering',
     role: 'staff',
     homeCity: 'Austin',
     homeState: 'TX',

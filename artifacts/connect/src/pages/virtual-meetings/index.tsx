@@ -11,17 +11,19 @@ import { useToast } from '@/components/ui/use-toast';
 import { VirtualMeetingForm, type VirtualMeetingFormValues } from '@/components/forms/VirtualMeetingForm';
 import type { ListVirtualMeetingsStatus } from '@workspace/api-client-react';
 import { useAuth } from '@/lib/auth';
+import { useScope, scopeToQuery } from '@/lib/scope';
 
 export default function VirtualMeetings() {
   const [statusFilter, setStatusFilter] = useState<ListVirtualMeetingsStatus | undefined>();
   const [showCreate, setShowCreate] = useState(false);
   const { isAdmin, isLeader } = useAuth();
+  const { scope } = useScope();
 
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
   const { data: meetings, isLoading } = useListVirtualMeetings(
-    { status: statusFilter },
+    { status: statusFilter, ...scopeToQuery(scope) } as any,
     { query: { keepPreviousData: true } as any }
   );
 
@@ -44,6 +46,7 @@ export default function VirtualMeetings() {
         status: values.status,
         hostId: values.hostId ? parseInt(values.hostId) : undefined,
         notes: values.notes || undefined,
+        meetingKind: values.meetingKind,
       } as any,
     });
   };

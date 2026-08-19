@@ -76,6 +76,7 @@ vi.mock('@workspace/db', () => ({
   db: mockDb,
   invitationsTable: { id: 'id', eventId: 'eventId', personId: 'personId', status: 'status' },
   peopleTable: { id: 'id' },
+  departmentsTable: { id: 'id', name: 'name' },
   eventsTable: { id: 'id' },
   settingsTable: { key: 'key', value: 'value' },
   auditLogTable: { id: 'id', actorId: 'actorId', actorName: 'actorName', action: 'action', resourceType: 'resourceType', resourceId: 'resourceId' },

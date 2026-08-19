@@ -39,6 +39,7 @@ vi.mock('@workspace/db', () => ({
     homeCity: 'homeCity',
     homeState: 'homeState',
   },
+  departmentsTable: { id: 'id', name: 'name' },
   eventsTable: { id: 'id', startDate: 'startDate' },
   eventLeadersTable: {},
   invitationsTable: { id: 'id', eventId: 'eventId', personId: 'personId', status: 'status' },
@@ -100,13 +101,17 @@ const VALID_CSV = [
   'John Doe,john@test.com,executive,VP Sales,Sales,New York,NY',
 ].join('\n');
 
+const DEPARTMENTS = [
+  { id: 1, name: 'Engineering' },
+  { id: 2, name: 'Sales' },
+];
+
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 describe('POST /api/people/import', () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    // Default: no existing people (all rows will be "created")
-    mockDb.select.mockReturnValue(makeChain([]));
+    mockDb.select.mockReturnValue(makeChain(DEPARTMENTS));
     mockDb.insert.mockReturnValue(makeChain([]));
   });
 
@@ -129,7 +134,8 @@ describe('POST /api/people/import', () => {
 
   it('returns 200 with created/updated/skipped counts', async () => {
     mockDb.select
-      .mockReturnValueOnce(makeChain([]))  // inArray existing-email check
+      .mockReturnValueOnce(makeChain(DEPARTMENTS))
+      .mockReturnValueOnce(makeChain([]))  // existing-email check
       .mockReturnValueOnce(makeChain([])); // total-count query for audit
     const upsertChain = makeChain([]);
     mockDb.insert.mockReturnValue(upsertChain);
@@ -142,6 +148,7 @@ describe('POST /api/people/import', () => {
   it('counts pre-existing emails as updated, not created', async () => {
     // Pretend jane@test.com already exists
     mockDb.select
+      .mockReturnValueOnce(makeChain(DEPARTMENTS))
       .mockReturnValueOnce(makeChain([{ email: 'jane@test.com' }]))
       .mockReturnValueOnce(makeChain([]));
     const upsertChain = makeChain([]);
@@ -154,7 +161,9 @@ describe('POST /api/people/import', () => {
   });
 
   it('calls insert().onConflictDoUpdate() for the upsert', async () => {
-    mockDb.select.mockReturnValue(makeChain([]));
+    mockDb.select
+      .mockReturnValueOnce(makeChain(DEPARTMENTS))
+      .mockReturnValue(makeChain([]));
     const chain = makeChain([]);
     mockDb.insert.mockReturnValue(chain);
 
@@ -283,7 +292,7 @@ describe('POST /api/people/import', () => {
   });
 
   it('accepts "job title" and "dept" aliases', async () => {
-    mockDb.select.mockReturnValue(makeChain([]));
+    mockDb.select.mockReturnValue(makeChain([{ id: 7, name: 'Eng' }]));
     const chain = makeChain([]);
     mockDb.insert.mockReturnValue(chain);
 
@@ -296,9 +305,9 @@ describe('POST /api/people/import', () => {
     expect(res.status).toBe(200);
     expect(res.body.created).toBe(1);
 
-    const [insertedValues] = (chain.values as ReturnType<typeof vi.fn>).mock.calls[0] as [Array<{ title: string; department: string }>];
+    const [insertedValues] = (chain.values as ReturnType<typeof vi.fn>).mock.calls[0] as [Array<{ title: string; departmentId: number }>];
     expect(insertedValues[0].title).toBe('Senior Dev');
-    expect(insertedValues[0].department).toBe('Eng');
+    expect(insertedValues[0].departmentId).toBe(7);
   });
 
   // ── Quoted field handling ────────────────────────────────────────────────
@@ -375,8 +384,8 @@ describe('POST /api/people/import', () => {
     const chain = makeChain([]);
     mockDb.insert.mockReturnValue(chain);
 
-    // Role-only update — city/state same as before
-    const csv = 'name,email,role\nJane Smith,jane@coord.com,executive\n';
+    // Title/role update with city/state present so coords use CASE preservation
+    const csv = 'name,email,role,homeCity,homeState\nJane Smith,jane@coord.com,executive,Austin,TX\n';
     await postImport(csv);
 
     const upsertArg = (chain.onConflictDoUpdate as ReturnType<typeof vi.fn>).mock.calls[0][0] as {
@@ -473,8 +482,8 @@ describe('POST /api/people/import', () => {
     mockDb.insert.mockReturnValue(makeChain([]));
 
     await postImport(csv);
-    // 2 email-lookup chunks + 1 audit total-count select = 3 selects
-    expect(selectCallCount).toBe(3);
+    // 2 email-lookup chunks + 1 department list + 1 audit total-count select
+    expect(selectCallCount).toBe(4);
   });
 
 // ─── parseCSV unit tests ─────────────────────────────────────────────────────

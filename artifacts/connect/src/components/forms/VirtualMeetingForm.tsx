@@ -13,6 +13,7 @@ const schema = z.object({
   hostId: z.string().optional().default(''),
   notes: z.string().optional().default(''),
   status: z.enum(['suggested', 'scheduled']),
+  meetingKind: z.enum(['general', 'hrbp_1on1', 'leader_1on1', 'skip_level']).default('general'),
 });
 
 export type VirtualMeetingFormValues = z.infer<typeof schema>;
@@ -27,7 +28,7 @@ interface Props {
 }
 
 const EMPTY = (title = '', status: 'suggested' | 'scheduled' = 'scheduled'): VirtualMeetingFormValues => ({
-  title, scheduledDate: '', hostId: '', notes: '', status,
+  title, scheduledDate: '', hostId: '', notes: '', status, meetingKind: 'general',
 });
 
 export function VirtualMeetingForm({
@@ -69,6 +70,16 @@ export function VirtualMeetingForm({
             <select {...register('status')} className={f}>
               <option value="scheduled">Scheduled (has a date)</option>
               <option value="suggested">Suggested (no date yet)</option>
+            </select>
+          </div>
+
+          <div>
+            <label className={l}>Coverage clock</label>
+            <select {...register('meetingKind')} className={f}>
+              <option value="general">General</option>
+              <option value="hrbp_1on1">HRBP 1:1</option>
+              <option value="leader_1on1">Leadership 1:1</option>
+              <option value="skip_level">Skip-level 1:1</option>
             </select>
           </div>
 

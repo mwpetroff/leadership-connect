@@ -1,7 +1,7 @@
 import { Router, type IRouter, type RequestHandler } from "express";
 import express from "express";
-import { eq, ilike, or, and, desc, inArray, sql, isNotNull } from "drizzle-orm";
-import { db, peopleTable, invitationsTable, virtualMeetingParticipantsTable, virtualMeetingsTable, eventsTable } from "@workspace/db";
+import { eq, ilike, desc, inArray, sql, isNotNull } from "drizzle-orm";
+import { db, peopleTable, invitationsTable, virtualMeetingParticipantsTable, virtualMeetingsTable, eventsTable, departmentsTable } from "@workspace/db";
 import {
   ListPeopleQueryParams,
   CreatePersonBody,
@@ -15,10 +15,18 @@ import { logAudit } from "../lib/audit";
 import { geocodeCity } from "../lib/geocoding";
 import { haversineMiles } from "../lib/geo";
 import { getSetting } from "../lib/settings-store";
+import { parseScopeQuery, inFocusIds, effectiveScope, type ScopePerson } from "../lib/scope";
+import { resolveViewer } from "../lib/viewer";
+import { toPersonDto } from "../lib/person-dto";
+import {
+  detectHeaders,
+  normalizeImportKey,
+  validateImportRows,
+  wouldCreateManagerCycle,
+} from "../lib/import-people";
 
 // ── CSV helpers ────────────────────────────────────────────────────────────────
 
-const VALID_ROLES = new Set(["executive", "secondary_leader", "staff"]);
 
 /**
  * Stateful CSV parser. Processes the entire document character-by-character so
@@ -95,23 +103,32 @@ export function parseCSV(text: string): Array<Record<string, string>> {
 // name while silently ignoring "last name" would corrupt records. Files with
 // separate first/last columns are detected below and rejected with a clear
 // per-row reason.
-const COL_ALIASES: Record<string, string> = {
-  "full name": "name",
-  "employee name": "name",
-  "work email": "email",
-  "email address": "email",
-  "job title": "title",
-  "position": "title",
-  "dept": "department",
-  "home city": "homecity",
-  "city": "homecity",
-  "home state": "homestate",
-  "state": "homestate",
-};
+function mapPersonRow(row: Record<string, unknown>) {
+  const person = (row.person ?? row) as Parameters<typeof toPersonDto>[0];
+  return toPersonDto(person, {
+    department: (row.departmentName as string | null | undefined) ?? (person as { department?: string | null }).department,
+    managerName: (row.managerName as string | null | undefined) ?? null,
+    hrbpName: (row.hrbpName as string | null | undefined) ?? null,
+  });
+}
 
-function normalizeKey(raw: string): string {
-  const lower = raw.toLowerCase().trim();
-  return COL_ALIASES[lower] ?? lower.replace(/[\s_-]+/g, "");
+async function resolveDepartmentId(input: {
+  departmentId?: number | null;
+  department?: string | null;
+}): Promise<{ id: number | null; error?: string }> {
+  if (input.departmentId != null) {
+    const [row] = await db
+      .select({ id: departmentsTable.id })
+      .from(departmentsTable)
+      .where(eq(departmentsTable.id, input.departmentId));
+    if (!row) return { id: null, error: "Unknown departmentId" };
+    return { id: row.id };
+  }
+  const name = input.department?.trim();
+  if (!name) return { id: null };
+  const [row] = await db.select().from(departmentsTable).where(ilike(departmentsTable.name, name));
+  if (!row) return { id: null, error: `Unknown department "${name}" — HR must create it first` };
+  return { id: row.id };
 }
 
 const router: IRouter = Router();
@@ -124,28 +141,53 @@ router.get("/people", async (req, res): Promise<void> => {
   }
 
   const { role, search } = parsed.data;
+  const viewer = await resolveViewer(req);
+  const scope = effectiveScope(parseScopeQuery(req.query as Record<string, unknown>), viewer);
+  const statusFilter = String((req.query as Record<string, unknown>).status ?? "");
 
-  const conditions: ReturnType<typeof eq>[] = [];
-  if (role) conditions.push(eq(peopleTable.role, role));
+  const people = await db.select().from(peopleTable).orderBy(peopleTable.name);
+  const depts = await db.select().from(departmentsTable);
+  const deptById = new Map(
+    depts
+      .filter((d) => typeof d.id === "number" && typeof (d as { name?: string }).name === "string")
+      .map((d) => [d.id, (d as { name: string }).name]),
+  );
+  const nameById = new Map(people.map((p) => [p.id, p.name]));
 
-  let query = db.select().from(peopleTable);
-  let results;
+  const mapped = people.map((p) =>
+    toPersonDto(p, {
+      department:
+        p.departmentId != null ? (deptById.get(p.departmentId) ?? null) : (p as { department?: string | null }).department,
+      managerName: p.managerId != null ? (nameById.get(p.managerId) ?? null) : null,
+      hrbpName: p.hrbpId != null ? (nameById.get(p.hrbpId) ?? null) : null,
+    }),
+  );
+  const scopePeople: ScopePerson[] = mapped.map((p) => ({
+    id: p.id,
+    managerId: p.managerId,
+    departmentId: p.departmentId,
+    hrbpId: p.hrbpId,
+    status: p.status === "inactive" ? "inactive" : "active",
+  }));
 
+  const focus = inFocusIds(scopePeople, scope, viewer);
+
+  let results = mapped.filter((p) => focus.has(p.id));
+  if (role) results = results.filter((p) => p.role === role);
+  if (statusFilter === "inactive") {
+    results = mapped.filter((p) => p.status === "inactive");
+  } else if (statusFilter === "active") {
+    results = results.filter((p) => p.status === "active");
+  }
   if (search) {
-    const searchLike = `%${search}%`;
-    if (conditions.length > 0) {
-      results = await query
-        .where(and(...conditions, or(ilike(peopleTable.name, searchLike), ilike(peopleTable.email, searchLike), ilike(peopleTable.department, searchLike))))
-        .orderBy(peopleTable.name);
-    } else {
-      results = await query
-        .where(or(ilike(peopleTable.name, searchLike), ilike(peopleTable.email, searchLike), ilike(peopleTable.department, searchLike)))
-        .orderBy(peopleTable.name);
-    }
-  } else if (conditions.length > 0) {
-    results = await query.where(and(...conditions)).orderBy(peopleTable.name);
-  } else {
-    results = await query.orderBy(peopleTable.name);
+    const q = search.toLowerCase();
+    results = results.filter(
+      (p) =>
+        p.name.toLowerCase().includes(q) ||
+        p.email.toLowerCase().includes(q) ||
+        (p.department ?? "").toLowerCase().includes(q) ||
+        (p.title ?? "").toLowerCase().includes(q),
+    );
   }
 
   res.json(results);
@@ -158,13 +200,39 @@ router.post("/people", async (req, res): Promise<void> => {
     return;
   }
 
+  const body = req.body as Record<string, unknown>;
+  const dept = await resolveDepartmentId({
+    departmentId: typeof body.departmentId === "number" ? body.departmentId : undefined,
+    department: parsed.data.department,
+  });
+  if (dept.error) {
+    res.status(400).json({ error: dept.error });
+    return;
+  }
+
   const coords = await geocodeCity(parsed.data.homeCity, parsed.data.homeState);
   const [person] = await db
     .insert(peopleTable)
-    .values({ ...parsed.data, lat: coords?.lat ?? null, lng: coords?.lng ?? null, geocodedAt: new Date() })
+    .values({
+      name: parsed.data.name,
+      email: parsed.data.email.trim().toLowerCase(),
+      role: parsed.data.role,
+      title: parsed.data.title ?? null,
+      homeCity: parsed.data.homeCity,
+      homeState: parsed.data.homeState,
+      notes: parsed.data.notes ?? null,
+      managerId: parsed.data.managerId ?? null,
+      departmentId: dept.id,
+      hrbpId: typeof body.hrbpId === "number" ? body.hrbpId : null,
+      isHrbp: body.isHrbp === true,
+      status: body.status === "inactive" ? "inactive" : "active",
+      lat: coords?.lat ?? null,
+      lng: coords?.lng ?? null,
+      geocodedAt: new Date(),
+    })
     .returning();
   logAudit(req, "create", "person", person.id, null, person);
-  res.status(201).json(person);
+  res.status(201).json(toPersonDto(person));
 });
 
 // ── GET /people/export ────────────────────────────────────────────────────────
@@ -176,7 +244,19 @@ router.get("/people/export", async (req, res): Promise<void> => {
   res.setHeader("Content-Disposition", 'attachment; filename="people-export.csv"');
   res.setHeader("Cache-Control", "no-store");
 
-  const HEADERS = ["name", "email", "role", "title", "department", "homeCity", "homeState"];
+  const HEADERS = [
+    "name",
+    "email",
+    "role",
+    "title",
+    "department",
+    "managerEmail",
+    "hrbpEmail",
+    "isHrbp",
+    "homeCity",
+    "homeState",
+    "status",
+  ];
 
   function escapeField(value: string | null | undefined): string {
     const s = value ?? "";
@@ -188,28 +268,28 @@ router.get("/people/export", async (req, res): Promise<void> => {
 
   res.write(HEADERS.join(",") + "\n");
 
-  const rows = await db
-    .select({
-      name: peopleTable.name,
-      email: peopleTable.email,
-      role: peopleTable.role,
-      title: peopleTable.title,
-      department: peopleTable.department,
-      homeCity: peopleTable.homeCity,
-      homeState: peopleTable.homeState,
-    })
-    .from(peopleTable)
-    .orderBy(peopleTable.name);
+  const people = await db.select().from(peopleTable).orderBy(peopleTable.name);
+  const depts = await db.select().from(departmentsTable);
+  const deptById = new Map(
+    depts
+      .filter((d) => typeof d.id === "number" && typeof (d as { name?: string }).name === "string")
+      .map((d) => [d.id, (d as { name: string }).name]),
+  );
+  const emailById = new Map(people.map((p) => [p.id, p.email]));
 
-  for (const row of rows) {
+  for (const row of people) {
     const line = [
       escapeField(row.name),
       escapeField(row.email),
       escapeField(row.role),
       escapeField(row.title),
-      escapeField(row.department),
+      escapeField(row.departmentId != null ? (deptById.get(row.departmentId) ?? "") : ""),
+      escapeField(row.managerId != null ? (emailById.get(row.managerId) ?? "") : ""),
+      escapeField(row.hrbpId != null ? (emailById.get(row.hrbpId) ?? "") : ""),
+      escapeField(row.isHrbp ? "true" : "false"),
       escapeField(row.homeCity),
       escapeField(row.homeState),
+      escapeField(row.status ?? "active"),
     ].join(",");
     res.write(line + "\n");
   }
@@ -230,7 +310,7 @@ router.get("/people/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  res.json(person);
+  res.json(mapPersonRow(person as unknown as Record<string, unknown>));
 });
 
 router.patch("/people/:id", async (req, res): Promise<void> => {
@@ -260,9 +340,32 @@ router.patch("/people/:id", async (req, res): Promise<void> => {
     coordUpdate = { lat: coords?.lat ?? null, lng: coords?.lng ?? null, geocodedAt: new Date() };
   }
 
+  const body = req.body as Record<string, unknown>;
+  let departmentId = before?.departmentId ?? null;
+  if (body.departmentId !== undefined || parsed.data.department !== undefined) {
+    const dept = await resolveDepartmentId({
+      departmentId: typeof body.departmentId === "number" ? body.departmentId : body.departmentId === null ? null : undefined,
+      department: parsed.data.department,
+    });
+    if (dept.error) {
+      res.status(400).json({ error: dept.error });
+      return;
+    }
+    departmentId = dept.id;
+  }
+
+  const { department: _department, ...rest } = parsed.data;
+
   const [person] = await db
     .update(peopleTable)
-    .set({ ...parsed.data, ...coordUpdate })
+    .set({
+      ...rest,
+      departmentId,
+      ...(body.hrbpId === undefined ? {} : { hrbpId: typeof body.hrbpId === "number" ? body.hrbpId : null }),
+      ...(typeof body.isHrbp === "boolean" ? { isHrbp: body.isHrbp } : {}),
+      ...(body.status === "active" || body.status === "inactive" ? { status: body.status } : {}),
+      ...coordUpdate,
+    })
     .where(eq(peopleTable.id, params.data.id))
     .returning();
 
@@ -272,7 +375,7 @@ router.patch("/people/:id", async (req, res): Promise<void> => {
   }
 
   logAudit(req, "update", "person", person.id, before ?? null, person);
-  res.json(person);
+  res.json(toPersonDto(person));
 });
 
 // ── POST /people/import ───────────────────────────────────────────────────────
@@ -305,82 +408,42 @@ router.post("/people/import", csvBodyParser, async (req, res): Promise<void> => 
   const rows = rawRows.map((r) => {
     const normalized: Record<string, string> = {};
     for (const [k, v] of Object.entries(r)) {
-      normalized[normalizeKey(k)] = v;
+      normalized[normalizeImportKey(k)] = v;
     }
     return normalized;
   });
 
-  // Validate each row
-  interface ValidRow {
-    name: string;
-    email: string;
-    role: "executive" | "secondary_leader" | "staff";
-    title: string | null;
-    department: string | null;
-    homeCity: string;
-    homeState: string;
-  }
-  interface SkippedRow {
-    row: number;
-    email: string;
-    reason: string;
-  }
+  const headers = detectHeaders(rows[0] ? Object.keys(rows[0]) : []);
+  const { valid, skipped } = validateImportRows(
+    rows.map((fields, i) => ({ rowNumber: i + 2, fields })),
+    headers,
+  );
 
-  // Detect separate first/last name columns before row-level validation.
-  // If the file has "firstname" or "lastname" (normalized) but no "name" column,
-  // every row would silently drop the last name. Reject with a clear message instead.
-  const hasSeparateNames =
-    rows.length > 0 &&
-    Object.prototype.hasOwnProperty.call(rows[0], "firstname") &&
-    !Object.prototype.hasOwnProperty.call(rows[0], "name");
+  const deptRows = await db.select({ id: departmentsTable.id, name: departmentsTable.name }).from(departmentsTable);
+  const deptByName = new Map(
+    deptRows
+      .filter((d) => typeof d.name === "string" && d.name)
+      .map((d) => [d.name.toLowerCase(), d.id]),
+  );
 
-  const validRows: ValidRow[] = [];
-  const skipped: SkippedRow[] = [];
-  const seenEmails = new Set<string>();
-
-  for (let i = 0; i < rows.length; i++) {
-    const r = rows[i];
-    const rowNum = i + 2; // 1-based, accounting for header row
-    const email = (r["email"] ?? "").trim().toLowerCase();
-    const name = (r["name"] ?? "").trim();
-
-    if (hasSeparateNames) {
-      skipped.push({
-        row: rowNum,
-        email: email || "(none)",
-        reason:
-          "File has separate 'first name'/'last name' columns — combine them into a single 'name' column and re-upload",
-      });
-      continue;
+  const validRows = [];
+  for (const row of valid) {
+    if (headers.department && row.departmentName) {
+      const id = deptByName.get(row.departmentName.toLowerCase());
+      if (id == null) {
+        skipped.push({
+          row: row.rowNumber,
+          email: row.email,
+          reason: `Unknown department "${row.departmentName}" — HR must create it before import`,
+        });
+        continue;
+      }
+      validRows.push({ ...row, departmentId: id as number });
+    } else if (headers.department && row.departmentName == null) {
+      validRows.push({ ...row, departmentId: null as number | null });
+    } else {
+      validRows.push({ ...row, departmentId: undefined as number | null | undefined });
     }
-    if (!name) {
-      skipped.push({ row: rowNum, email: email || "(none)", reason: "Missing required field: name" });
-      continue;
-    }
-    if (!email || !email.includes("@")) {
-      skipped.push({ row: rowNum, email: email || "(none)", reason: "Missing or invalid email address" });
-      continue;
-    }
-    if (seenEmails.has(email)) {
-      skipped.push({ row: rowNum, email, reason: "Duplicate email within the uploaded file (first occurrence wins)" });
-      continue;
-    }
-    seenEmails.add(email);
-
-    const rawRole = (r["role"] ?? "").trim().toLowerCase().replace(/[\s-]+/g, "_");
-    const role = VALID_ROLES.has(rawRole)
-      ? (rawRole as ValidRow["role"])
-      : "staff";
-
-    validRows.push({
-      name,
-      email,
-      role,
-      title: r["title"]?.trim() || null,
-      department: r["department"]?.trim() || null,
-      homeCity: r["homecity"]?.trim() || "",
-      homeState: r["homestate"]?.trim() || "",
-    });
   }
 
   if (validRows.length === 0) {
@@ -388,43 +451,62 @@ router.post("/people/import", csvBodyParser, async (req, res): Promise<void> => 
     return;
   }
 
-  // ── Chunk helper ────────────────────────────────────────────────────────
   function chunk<T>(arr: T[], size: number): T[][] {
     const out: T[][] = [];
     for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
     return out;
   }
 
-  // ── Determine which emails already exist (chunked inArray) ───────────────
-  // PostgreSQL also has a practical limit on IN list size; 500 emails per
-  // query is conservative and avoids any per-statement parameter ceiling.
   const emails = validRows.map((r) => r.email);
-  const existingRows: { email: string }[] = [];
+  const existingRows: { email?: string }[] = [];
   for (const emailChunk of chunk(emails, UPSERT_CHUNK_SIZE)) {
-    const rows = await db
+    const found = await db
       .select({ email: peopleTable.email })
       .from(peopleTable)
       .where(inArray(peopleTable.email, emailChunk));
-    existingRows.push(...rows);
+    existingRows.push(...found);
   }
-  const existingEmails = new Set(existingRows.map((e) => e.email.toLowerCase()));
+  const existingEmails = new Set(
+    existingRows.map((e) => e.email).filter((e): e is string => typeof e === "string" && e.includes("@")).map((e) => e.toLowerCase()),
+  );
 
   const createdCount = validRows.filter((r) => !existingEmails.has(r.email)).length;
   const updatedCount = validRows.filter((r) => existingEmails.has(r.email)).length;
 
-  // ── Chunked upsert — stays well within PostgreSQL's 65,535 param limit ──
   const insertValues = validRows.map((r) => ({
     name: r.name,
     email: r.email,
-    role: r.role,
-    title: r.title,
-    department: r.department,
-    homeCity: r.homeCity,
-    homeState: r.homeState,
+    role: r.role ?? "staff",
+    title: headers.title ? r.title ?? null : null,
+    departmentId: r.departmentId ?? null,
+    homeCity: r.homeCity ?? "",
+    homeState: r.homeState ?? "",
+    isHrbp: r.isHrbp ?? false,
+    status: r.status ?? "active",
     lat: null as number | null,
     lng: null as number | null,
-    // geocodedAt stays null so the existing backfill picks up new rows
   }));
+
+  const setClause: Record<string, unknown> = {
+    name: sql`excluded.name`,
+    updatedAt: sql`now()`,
+    lat: sql`CASE WHEN excluded.home_city != people.home_city OR excluded.home_state != people.home_state THEN NULL ELSE people.lat END`,
+    lng: sql`CASE WHEN excluded.home_city != people.home_city OR excluded.home_state != people.home_state THEN NULL ELSE people.lng END`,
+    geocodedAt: sql`CASE WHEN excluded.home_city != people.home_city OR excluded.home_state != people.home_state THEN NULL ELSE people.geocoded_at END`,
+  };
+  if (headers.role) setClause.role = sql`excluded.role`;
+  if (headers.title) setClause.title = sql`excluded.title`;
+  if (headers.department) setClause.departmentId = sql`excluded.department_id`;
+  if (headers.homeCity) setClause.homeCity = sql`excluded.home_city`;
+  if (headers.homeState) setClause.homeState = sql`excluded.home_state`;
+  if (headers.isHrbp) setClause.isHrbp = sql`excluded.is_hrbp`;
+  if (headers.status) setClause.status = sql`excluded.status`;
+  if (!headers.homeCity && !headers.homeState) {
+    // Location columns omitted: never null out coordinates.
+    setClause.lat = sql`people.lat`;
+    setClause.lng = sql`people.lng`;
+    setClause.geocodedAt = sql`people.geocoded_at`;
+  }
 
   for (const rowChunk of chunk(insertValues, UPSERT_CHUNK_SIZE)) {
     await db
@@ -432,25 +514,83 @@ router.post("/people/import", csvBodyParser, async (req, res): Promise<void> => 
       .values(rowChunk)
       .onConflictDoUpdate({
         target: peopleTable.email,
-        set: {
-          name: sql`excluded.name`,
-          role: sql`excluded.role`,
-          title: sql`excluded.title`,
-          department: sql`excluded.department`,
-          homeCity: sql`excluded.home_city`,
-          homeState: sql`excluded.home_state`,
-          // Only reset coordinates when the location actually changes.
-          // If city/state are unchanged, preserve existing coords so the map
-          // is not regressed by non-location updates (title, role, dept…).
-          lat: sql`CASE WHEN excluded.home_city != people.home_city OR excluded.home_state != people.home_state THEN NULL ELSE people.lat END`,
-          lng: sql`CASE WHEN excluded.home_city != people.home_city OR excluded.home_state != people.home_state THEN NULL ELSE people.lng END`,
-          geocodedAt: sql`CASE WHEN excluded.home_city != people.home_city OR excluded.home_state != people.home_state THEN NULL ELSE people.geocoded_at END`,
-          updatedAt: sql`now()`,
-        },
+        set: setClause as never,
       });
   }
 
-  // Single audit entry for the whole import
+  // Second pass: manager / HRBP emails now that every row exists.
+  if (headers.managerEmail || headers.hrbpEmail) {
+    const directory = await db.select({
+      id: peopleTable.id,
+      email: peopleTable.email,
+      isHrbp: peopleTable.isHrbp,
+      managerId: peopleTable.managerId,
+    }).from(peopleTable);
+    const byEmail = new Map(
+      directory
+        .filter((p) => typeof p.email === "string")
+        .map((p) => [p.email.toLowerCase(), p]),
+    );
+    const managerById = new Map(directory.map((p) => [p.id, p.managerId ?? null]));
+
+    for (const row of validRows) {
+      const person = byEmail.get(row.email);
+      if (!person) continue;
+      const patch: { managerId?: number | null; hrbpId?: number | null } = {};
+
+      if (headers.managerEmail) {
+        if (!row.managerEmail) {
+          patch.managerId = null;
+        } else {
+          const manager = byEmail.get(row.managerEmail);
+          if (!manager) {
+            skipped.push({
+              row: row.rowNumber,
+              email: row.email,
+              reason: `Unknown managerEmail "${row.managerEmail}"`,
+            });
+          } else if (wouldCreateManagerCycle(person.id, manager.id, managerById)) {
+            skipped.push({
+              row: row.rowNumber,
+              email: row.email,
+              reason: "Manager assignment would create a reporting cycle",
+            });
+          } else {
+            patch.managerId = manager.id;
+            managerById.set(person.id, manager.id);
+          }
+        }
+      }
+
+      if (headers.hrbpEmail) {
+        if (!row.hrbpEmail) {
+          patch.hrbpId = null;
+        } else {
+          const hrbp = byEmail.get(row.hrbpEmail);
+          if (!hrbp) {
+            skipped.push({
+              row: row.rowNumber,
+              email: row.email,
+              reason: `Unknown hrbpEmail "${row.hrbpEmail}"`,
+            });
+          } else if (!hrbp.isHrbp) {
+            skipped.push({
+              row: row.rowNumber,
+              email: row.email,
+              reason: `hrbpEmail "${row.hrbpEmail}" is not marked as an HRBP`,
+            });
+          } else {
+            patch.hrbpId = hrbp.id;
+          }
+        }
+      }
+
+      if (Object.keys(patch).length > 0) {
+        await db.update(peopleTable).set(patch).where(eq(peopleTable.id, person.id));
+      }
+    }
+  }
+
   const beforeCount = (await db.select({ id: peopleTable.id }).from(peopleTable)).length;
   logAudit(req, "create", "bulk_import", "people", null, {
     created: createdCount,
@@ -629,7 +769,7 @@ router.get("/people/nearby", async (req, res): Promise<void> => {
       email: p.email,
       title: p.title,
       role: p.role,
-      department: p.department,
+      department: null,
       homeCity: p.homeCity,
       homeState: p.homeState,
       distanceMiles: Math.round(haversineMiles(coords.lat, coords.lng, p.lat!, p.lng!) * 10) / 10,

@@ -46,6 +46,7 @@ vi.mock('@workspace/db', () => ({
     lng: 'lng',
   },
   peopleTable: { id: 'id', name: 'name', role: 'role', homeCity: 'homeCity', homeState: 'homeState' },
+  departmentsTable: { id: 'id', name: 'name' },
   eventsTable: { id: 'id', name: 'name', location: 'location', city: 'city', state: 'state', startDate: 'startDate', endDate: 'endDate', eventType: 'eventType' },
   invitationsTable: { eventId: 'eventId', personId: 'personId', status: 'status' },
   eventLeadersTable: {},

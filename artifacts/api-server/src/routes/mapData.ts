@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
 import { db, peopleTable, eventsTable, invitationsTable, officesTable } from "@workspace/db";
+import { parseScopeQuery, effectiveScope, inFocusIds, asScopePerson, eventTouchesScope } from "../lib/scope";
+import { resolveViewer } from "../lib/viewer";
 
 const router: IRouter = Router();
 
@@ -14,7 +15,7 @@ const router: IRouter = Router();
  * lat/lng are included when already geocoded server-side so the client
  * can skip Nominatim for known records.
  */
-router.get("/map-data", async (_req, res): Promise<void> => {
+router.get("/map-data", async (req, res): Promise<void> => {
   const [people, events, invitations, offices] = await Promise.all([
     db.select({
       id: peopleTable.id,
@@ -25,6 +26,10 @@ router.get("/map-data", async (_req, res): Promise<void> => {
       homeState: peopleTable.homeState,
       lat: peopleTable.lat,
       lng: peopleTable.lng,
+      managerId: peopleTable.managerId,
+      departmentId: peopleTable.departmentId,
+      hrbpId: peopleTable.hrbpId,
+      status: peopleTable.status,
     }).from(peopleTable),
 
     db.select({
@@ -56,11 +61,24 @@ router.get("/map-data", async (_req, res): Promise<void> => {
     }).from(officesTable),
   ]);
 
+  const viewer = await resolveViewer(req);
+  const scope = effectiveScope(parseScopeQuery(req.query as Record<string, unknown>), viewer);
+  const focus = inFocusIds(people.map(asScopePerson), scope, viewer);
+  const scopedPeople = people.filter((p) => focus.has(p.id));
+
   // Build a personId → person lookup for enriching invitations
-  const personById = new Map(people.map((p) => [p.id, p]));
+  const personById = new Map(scopedPeople.map((p) => [p.id, p]));
 
   // Attach enriched invitee lists to each event
-  const eventsWithInvitees = events.map((event) => ({
+  const eventsWithInvitees = events
+    .filter((event) => {
+      if (scope.lens === "all") return true;
+      const participantIds = invitations
+        .filter((inv) => inv.eventId === event.id)
+        .map((inv) => inv.personId);
+      return eventTouchesScope(participantIds, focus);
+    })
+    .map((event) => ({
     ...event,
     invitees: invitations
       .filter((inv) => inv.eventId === event.id)
@@ -76,7 +94,7 @@ router.get("/map-data", async (_req, res): Promise<void> => {
       }),
   }));
 
-  res.json({ people, events: eventsWithInvitees, offices });
+  res.json({ people: scopedPeople, events: eventsWithInvitees, offices });
 });
 
 export default router;

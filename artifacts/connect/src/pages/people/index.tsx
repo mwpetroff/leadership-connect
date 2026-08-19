@@ -11,6 +11,8 @@ import { useToast } from '@/components/ui/use-toast';
 import { PersonForm, type PersonFormValues } from '@/components/forms/PersonForm';
 import { ConfirmDialog } from '@/components/forms/ConfirmDialog';
 import type { PersonRole, Person } from '@workspace/api-client-react';
+import { useQuery } from '@tanstack/react-query';
+import { useScope } from '@/lib/scope';
 import { useAuth } from '@/lib/auth';
 
 function RoleBadge({ role }: { role: string }) {
@@ -28,12 +30,20 @@ export default function PeopleDirectory() {
 
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const { isAdmin } = useAuth();
+  const { isAdmin, isHrbp } = useAuth();
+  const { queryString } = useScope();
 
-  const { data: people, isLoading } = useListPeople(
-    { search, role: roleFilter },
-    { query: { keepPreviousData: true } as any }
-  );
+  const { data: people, isLoading } = useQuery<Person[]>({
+    queryKey: ['people', search, roleFilter, queryString],
+    queryFn: async () => {
+      const params = new URLSearchParams(queryString);
+      if (search) params.set('search', search);
+      if (roleFilter) params.set('role', roleFilter);
+      const res = await fetch(`${import.meta.env.BASE_URL}api/people?${params}`, { credentials: 'include' });
+      if (!res.ok) throw new Error('Failed to load people');
+      return res.json();
+    },
+  });
 
   const createPerson = useCreatePerson({
     mutation: {
@@ -85,7 +95,7 @@ export default function PeopleDirectory() {
           <h1 className="text-3xl font-bold tracking-tight text-foreground">People Directory</h1>
           <p className="text-muted-foreground mt-1">Search and filter all team members.</p>
         </div>
-        {isAdmin && (
+        {(isAdmin || isHrbp) && (
           <button
             onClick={() => setShowAdd(true)}
             className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground font-medium rounded-md shadow-sm hover:bg-primary/90 transition-colors"
@@ -171,7 +181,7 @@ export default function PeopleDirectory() {
                     </td>
                     <td className="py-3 px-4 text-right">
                       <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-end gap-2">
-                        {isAdmin && (
+                        {(isAdmin || isHrbp) && (
                           <>
                             <button
                               onClick={() => setEditPerson(person)}
@@ -180,6 +190,7 @@ export default function PeopleDirectory() {
                             >
                               <Pencil className="h-3.5 w-3.5" />
                             </button>
+                            {(isAdmin) && (
                             <button
                               onClick={() => setDeletingId(person.id)}
                               className="p-1.5 rounded hover:bg-red-50 text-muted-foreground hover:text-red-600"
@@ -187,6 +198,7 @@ export default function PeopleDirectory() {
                             >
                               <Trash2 className="h-3.5 w-3.5" />
                             </button>
+                            )}
                           </>
                         )}
                         <Link
