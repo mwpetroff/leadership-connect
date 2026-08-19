@@ -1,1 +1,2 @@
 - [Event sponsors architecture](event-sponsors-architecture.md) — sponsors use a junction table (multi-sponsor); organizer stays a single FK; edit form covers organizer+venues but not sponsors (inline add/remove on detail page)
+- [GitHub publishing](github-publishing.md) — the configured HTTPS Git remote can reject credentials even while the GitHub connector works; use authenticated API publishing when needed
