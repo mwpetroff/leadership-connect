@@ -12,7 +12,7 @@ export interface SessionUser {
   name: string;
   email: string;
   azureOid: string;
-  role: "admin" | "leader" | "staff";
+  role: "admin" | "hrbp" | "leader" | "staff";
 }
 
 declare module "express-session" {
@@ -180,7 +180,8 @@ export const sessionMiddleware = session({
 // ── Role helpers ──────────────────────────────────────────────────────────────
 
 export const ROLE_ORDER: Record<string, number> = {
-  admin: 2,
+  admin: 3,
+  hrbp: 2,
   leader: 1,
   staff: 0,
 };
@@ -190,6 +191,7 @@ function extractRole(
 ): SessionUser["role"] {
   const roles = Array.isArray(claims.roles) ? claims.roles : [];
   if (roles.includes("admin")) return "admin";
+  if (roles.includes("hrbp")) return "hrbp";
   if (roles.includes("leader")) return "leader";
   return "staff";
 }
@@ -241,9 +243,9 @@ export function requireAuth(
 
 /**
  * Require a minimum role level. Must be called after requireAuth.
- * admin ≥ leader ≥ staff
+ * admin ≥ hrbp ≥ leader ≥ staff
  */
-export function requireRole(minRole: "admin" | "leader") {
+export function requireRole(minRole: "admin" | "hrbp" | "leader") {
   const required = ROLE_ORDER[minRole];
   return (req: Request, res: Response, next: NextFunction): void => {
     const user = req.user;

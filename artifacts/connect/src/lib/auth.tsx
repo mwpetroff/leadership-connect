@@ -12,12 +12,15 @@ export interface AuthUser {
   name: string;
   email: string;
   azureOid: string;
-  role: "admin" | "leader" | "staff";
+  role: "admin" | "hrbp" | "leader" | "staff";
+  personId?: number | null;
+  isHrbp?: boolean;
 }
 
 interface AuthContextValue {
   user: AuthUser | null;
   isAdmin: boolean;
+  isHrbp: boolean;
   isLeader: boolean;
   isLoading: boolean;
 }
@@ -27,6 +30,7 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue>({
   user: null,
   isAdmin: false,
+  isHrbp: false,
   isLeader: false,
   isLoading: true,
 });
@@ -52,10 +56,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
 
   const isAdmin = user?.role === "admin";
-  const isLeader = user?.role === "leader" || isAdmin;
+  const isHrbp = user?.role === "hrbp" || user?.isHrbp === true || isAdmin;
+  const isLeader = user?.role === "leader" || isAdmin || isHrbp;
 
   return (
-    <AuthContext.Provider value={{ user, isAdmin, isLeader, isLoading }}>
+    <AuthContext.Provider value={{ user, isAdmin, isHrbp, isLeader, isLoading }}>
       {children}
     </AuthContext.Provider>
   );

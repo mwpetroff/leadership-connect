@@ -65,6 +65,7 @@ vi.mock('@workspace/db', () => ({
   virtualMeetingsTable: { id: 'id', status: 'status', scheduledDate: 'scheduledDate' },
   virtualMeetingParticipantsTable: { meetingId: 'meetingId', personId: 'personId' },
   peopleTable: { id: 'id' },
+  departmentsTable: { id: 'id', name: 'name' },
   settingsTable: { key: 'key', value: 'value' },
   auditLogTable: { id: 'id', actorId: 'actorId', actorName: 'actorName', action: 'action', resourceType: 'resourceType', resourceId: 'resourceId' },
 }));
@@ -94,7 +95,9 @@ describe('GET /api/virtual-meetings', () => {
   it('returns 200 with an array', async () => {
     mockDb.select
       .mockReturnValueOnce(makeChain([mockMeeting])) // list
-      .mockReturnValueOnce(makeChain([]));            // participants
+      .mockReturnValueOnce(makeChain([]))            // participants
+      .mockReturnValueOnce(makeChain([]))            // scope people
+      .mockReturnValueOnce(makeChain([]));           // viewer
     const res = await request(app).get('/api/virtual-meetings');
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);

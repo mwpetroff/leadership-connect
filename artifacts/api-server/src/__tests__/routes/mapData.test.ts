@@ -66,6 +66,7 @@ vi.mock('@workspace/db', () => ({
     lat: 'lat',
     lng: 'lng',
   },
+  departmentsTable: { id: 'id', name: 'name' },
   eventsTable: {
     id: 'id',
     name: 'name',
@@ -100,7 +101,10 @@ vi.mock('@workspace/db', () => ({
 
 import app from '../../app';
 
-beforeEach(() => { vi.resetAllMocks(); });
+beforeEach(() => {
+  vi.resetAllMocks();
+  mockDb.select.mockReturnValue(makeChain([]));
+});
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
 

@@ -52,6 +52,7 @@ vi.mock('@workspace/db', () => ({
   eventSponsorsTable: { eventId: 'eventId', personId: 'personId', addedAt: 'addedAt' },
   invitationsTable: { eventId: 'eventId', personId: 'personId', status: 'status' },
   peopleTable: {},
+  departmentsTable: { id: 'id', name: 'name' },
   settingsTable: { key: 'key', value: 'value' },
   auditLogTable: { id: 'id', actorId: 'actorId', actorName: 'actorName', action: 'action', resourceType: 'resourceType', resourceId: 'resourceId' },
 }));
@@ -82,7 +83,9 @@ describe('GET /api/events', () => {
       .mockReturnValueOnce(makeChain([mockEvent])) // list
       .mockReturnValueOnce(makeChain([]))           // eventWithCounts leaders
       .mockReturnValueOnce(makeChain([]))           // eventWithCounts invitations
-      .mockReturnValueOnce(makeChain([]));          // eventWithCounts sponsors
+      .mockReturnValueOnce(makeChain([]))           // eventWithCounts sponsors
+      .mockReturnValueOnce(makeChain([]))           // scope people
+      .mockReturnValueOnce(makeChain([]));          // viewer
     const res = await request(app).get('/api/events');
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);

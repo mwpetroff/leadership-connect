@@ -21,6 +21,8 @@ import {
   Clock,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { ScopeBar } from '@/components/layout/ScopeBar';
+import { useScope } from '@/lib/scope';
 import { useAuth } from '@/lib/auth';
 
 interface ShellProps {
@@ -28,14 +30,14 @@ interface ShellProps {
 }
 
 const navItems = [
-  { name: 'Dashboard',       href: '/',                icon: LayoutDashboard, adminOnly: false },
-  { name: 'People',          href: '/people',           icon: Users,           adminOnly: false },
-  { name: 'Org Chart',       href: '/org-chart',        icon: GitBranch,       adminOnly: false },
-  { name: 'Events',          href: '/events',           icon: CalendarDays,    adminOnly: false },
-  { name: 'Virtual Meetings',href: '/virtual-meetings', icon: Video,           adminOnly: false },
-  { name: 'Suggestions Hub', href: '/suggestions',      icon: Lightbulb,       adminOnly: false },
-  { name: 'Engagement Map',  href: '/map',              icon: Map,             adminOnly: false },
-  { name: 'Settings',        href: '/settings',         icon: Settings,        adminOnly: true  },
+  { name: 'Dashboard',       href: '/',                icon: LayoutDashboard, roles: ['admin', 'hrbp', 'leader', 'staff'] },
+  { name: 'People',          href: '/people',           icon: Users,           roles: ['admin', 'hrbp', 'leader', 'staff'] },
+  { name: 'Org Chart',       href: '/org-chart',        icon: GitBranch,       roles: ['admin', 'hrbp', 'leader', 'staff'] },
+  { name: 'Events',          href: '/events',           icon: CalendarDays,    roles: ['admin', 'hrbp', 'leader', 'staff'] },
+  { name: 'Virtual Meetings',href: '/virtual-meetings', icon: Video,           roles: ['admin', 'hrbp', 'leader', 'staff'] },
+  { name: 'Suggestions Hub', href: '/suggestions',      icon: Lightbulb,       roles: ['admin', 'hrbp', 'leader', 'staff'] },
+  { name: 'Engagement Map',  href: '/map',              icon: Map,             roles: ['admin', 'hrbp', 'leader', 'staff'] },
+  { name: 'Settings',        href: '/settings',         icon: Settings,        roles: ['admin', 'hrbp']  },
 ];
 
 const avatarPalette = [
@@ -59,12 +61,12 @@ function avatarColor(name: string) {
   return avatarPalette[Math.abs(hash) % avatarPalette.length];
 }
 
-function NavLinks({ isAdmin, location, onNavigate }: {
-  isAdmin: boolean; location: string; onNavigate?: () => void;
+function NavLinks({ role, location, onNavigate }: {
+  role: string; location: string; onNavigate?: () => void;
 }) {
   return (
     <nav className="space-y-0.5 px-3">
-      {navItems.filter(item => !item.adminOnly || isAdmin).map(item => {
+      {navItems.filter(item => item.roles.includes(role)).map(item => {
         const isActive = item.href === '/' ? location === '/' : location.startsWith(item.href);
         return (
           <Link
@@ -98,7 +100,7 @@ function BrandLogo({ orgName }: { orgName?: string }) {
           {orgName ?? 'Leadership'}
         </div>
         <div className="text-[11px] text-muted-foreground font-medium tracking-wide uppercase leading-none mt-0.5">
-          Connect
+          Touchpoint
         </div>
       </div>
     </div>
@@ -193,6 +195,7 @@ function GlobalSearch() {
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [, navigate] = useLocation();
+  const { queryString } = useScope();
 
   // Debounced query for the API call
   const [debouncedQ, setDebouncedQ] = useState('');
@@ -202,11 +205,11 @@ function GlobalSearch() {
   }, [query]);
 
   const { data: results, isFetching } = useQuery<SearchResults>({
-    queryKey: ['search', debouncedQ],
+    queryKey: ['search', debouncedQ, queryString],
     queryFn: async () => {
       if (!debouncedQ.trim()) return { people: [], events: [], virtualMeetings: [] };
       const res = await fetch(
-        `${import.meta.env.BASE_URL}api/search?q=${encodeURIComponent(debouncedQ)}`,
+        `${import.meta.env.BASE_URL}api/search?q=${encodeURIComponent(debouncedQ)}&${queryString}`,
         { credentials: 'include' },
       );
       if (!res.ok) throw new Error('Search failed');
@@ -401,7 +404,8 @@ function ResultBody({ r }: { r: FlatResult }) {
 
 export function Shell({ children }: ShellProps) {
   const [location] = useLocation();
-  const { user, isAdmin } = useAuth();
+  const { user } = useAuth();
+  const role = user?.role ?? 'staff';
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   const { data: settings } = useQuery<{ key: string; value: string }[]>({
@@ -413,10 +417,12 @@ export function Shell({ children }: ShellProps) {
     },
     staleTime: 5 * 60 * 1000,
   });
-  const orgName = settings?.find(s => s.key === 'orgName')?.value;
-
+  const orgName = settings?.find(s => s.key === 'org_name' || s.key === 'orgName')?.value;
   const displayName = user?.name ?? 'Unknown';
-  const displayRole = user?.role === 'admin' ? 'Admin' : user?.role === 'leader' ? 'Leader' : 'Staff';
+  const displayRole =
+    user?.role === 'admin' ? 'Admin' :
+    user?.role === 'hrbp' ? 'HRBP' :
+    user?.role === 'leader' ? 'Leader' : 'Staff';
   const initials = userInitials(displayName);
   const avatarCls = avatarColor(displayName);
 
@@ -428,7 +434,7 @@ export function Shell({ children }: ShellProps) {
           <BrandLogo orgName={orgName} />
         </div>
         <div className="flex-1 overflow-auto py-5">
-          <NavLinks isAdmin={isAdmin} location={location} />
+          <NavLinks role={role} location={location} />
         </div>
         <div className="p-4 border-t border-border space-y-1">
           <UserCard initials={initials} avatarCls={avatarCls} displayName={displayName} displayRole={displayRole} />
@@ -468,7 +474,7 @@ export function Shell({ children }: ShellProps) {
           </button>
         </div>
         <div className="flex-1 overflow-auto py-5">
-          <NavLinks isAdmin={isAdmin} location={location} onNavigate={() => setDrawerOpen(false)} />
+          <NavLinks role={role} location={location} onNavigate={() => setDrawerOpen(false)} />
         </div>
         <div className="p-4 border-t border-border space-y-1 shrink-0">
           <UserCard initials={initials} avatarCls={avatarCls} displayName={displayName} displayRole={displayRole} />
@@ -513,7 +519,8 @@ export function Shell({ children }: ShellProps) {
         </header>
 
         <div className="flex-1 overflow-auto p-4 md:p-6 lg:p-8">
-          <div className="max-w-6xl mx-auto">
+          <div className="max-w-6xl mx-auto space-y-4">
+            <ScopeBar />
             {children}
           </div>
         </div>

@@ -13,6 +13,7 @@ import {
 
 import { Shell } from '@/components/layout/Shell';
 import { AuthProvider, useAuth } from '@/lib/auth';
+import { ScopeProvider } from '@/lib/scope';
 import LoginPage from '@/pages/login';
 import Dashboard from '@/pages/dashboard';
 import PeopleDirectory from '@/pages/people';
@@ -104,7 +105,9 @@ function App() {
       <TooltipProvider>
         <WouterRouter base={import.meta.env.BASE_URL?.replace(/\/$/, '') || ''}>
           <AuthProvider>
-            <Router />
+            <ScopeProvider>
+              <Router />
+            </ScopeProvider>
           </AuthProvider>
         </WouterRouter>
         <Toaster />

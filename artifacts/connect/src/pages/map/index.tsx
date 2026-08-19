@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { MapPin, Users, CalendarDays, X, Loader2, Info, Building2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
+import { useScope } from '@/lib/scope';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -444,11 +445,12 @@ function OfficePanel({ office }: { office: MapOffice }) {
 export default function EngagementMap() {
   const [selection, setSelection] = useState<Selection | null>(null);
   const [filter, setFilter] = useState({ showExecs: true, showLeaders: true, showStaff: true, showEvents: true, showOffices: true });
+  const { queryString } = useScope();
 
   const { data, isLoading } = useQuery<MapData>({
-    queryKey: ['map-data'],
+    queryKey: ['map-data', queryString],
     queryFn: async () => {
-      const res = await fetch(`${import.meta.env.BASE_URL}api/map-data`, { credentials: 'include' });
+      const res = await fetch(`${import.meta.env.BASE_URL}api/map-data?${queryString}`, { credentials: 'include' });
       if (!res.ok) throw new Error('Failed to load map data');
       return res.json();
     },

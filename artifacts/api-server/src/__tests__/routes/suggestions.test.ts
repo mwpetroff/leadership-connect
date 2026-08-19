@@ -27,6 +27,7 @@ const { mockDb, makeChain } = vi.hoisted(() => {
 vi.mock('@workspace/db', () => ({
   db: mockDb,
   peopleTable: { id: 'id', role: 'role', name: 'name', homeState: 'homeState', homeCity: 'homeCity' },
+  departmentsTable: { id: 'id', name: 'name' },
   eventsTable: { id: 'id', startDate: 'startDate', state: 'state', city: 'city' },
   eventLeadersTable: { eventId: 'eventId', personId: 'personId' },
   invitationsTable: { eventId: 'eventId', personId: 'personId', status: 'status' },

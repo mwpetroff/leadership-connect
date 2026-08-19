@@ -11,18 +11,20 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/components/ui/use-toast';
 import { EventWizard, type WizardResult } from '@/components/forms/EventWizard';
 import { useAuth } from '@/lib/auth';
+import { useScope, scopeToQuery } from '@/lib/scope';
 
 export default function EventsList() {
   const [filterUpcoming, setFilterUpcoming] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [wizardPending, setWizardPending] = useState(false);
   const { isAdmin } = useAuth();
+  const { scope } = useScope();
 
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
   const { data: events, isLoading } = useListEvents(
-    { upcoming: filterUpcoming ? true : undefined },
+    { upcoming: filterUpcoming ? true : undefined, ...scopeToQuery(scope) } as any,
     { query: { keepPreviousData: true } as any }
   );
 

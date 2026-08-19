@@ -1,6 +1,38 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import request from 'supertest';
 
+vi.mock('@workspace/db', () => {
+  function chain() {
+    const c: Record<string, unknown> = {};
+    const self = () => c;
+    for (const m of ['from', 'where', 'orderBy', 'limit', 'innerJoin', 'leftJoin', 'set', 'values']) {
+      c[m] = self;
+    }
+    c.returning = () => Promise.resolve([]);
+    c.onConflictDoNothing = () => Promise.resolve([]);
+    c.then = (res: (v: unknown) => unknown) => Promise.resolve([]).then(res);
+    return c;
+  }
+  return {
+    db: {
+      select: () => chain(),
+      insert: () => chain(),
+      update: () => chain(),
+      delete: () => chain(),
+    },
+    peopleTable: { id: 'id', email: 'email', isHrbp: 'isHrbp', name: 'name' },
+    departmentsTable: { id: 'id', name: 'name' },
+    eventsTable: {},
+    eventLeadersTable: {},
+    invitationsTable: {},
+    virtualMeetingsTable: {},
+    virtualMeetingParticipantsTable: {},
+    settingsTable: { key: 'key', value: 'value' },
+    auditLogTable: {},
+    msalTokenCacheTable: {},
+  };
+});
+
 // NOTE: In the Replit test environment AZURE_AD_* env vars are unset, so
 // `azureEnabled` is false and `requireAuth` always grants dev-admin access.
 // We therefore test:
@@ -187,6 +219,35 @@ describe('requireRole middleware', () => {
     const next = vi.fn();
     requireRole('leader')(req, res, next);
     expect(res.status).toHaveBeenCalledWith(401);
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('passes when an HRBP meets an HRBP-level check', async () => {
+    const { requireRole } = await import('../../lib/auth');
+    const req: any = { user: { id: '4', name: 'H', email: 'h@b.com', azureOid: '4', role: 'hrbp' } };
+    const res: any = { status: vi.fn().mockReturnThis(), json: vi.fn() };
+    const next = vi.fn();
+    requireRole('hrbp')(req, res, next);
+    expect(next).toHaveBeenCalledOnce();
+  });
+
+  it('returns 403 when an HRBP attempts an admin-only operation', async () => {
+    const { requireRole } = await import('../../lib/auth');
+    const req: any = { user: { id: '4', name: 'H', email: 'h@b.com', azureOid: '4', role: 'hrbp' } };
+    const res: any = { status: vi.fn().mockReturnThis(), json: vi.fn() };
+    const next = vi.fn();
+    requireRole('admin')(req, res, next);
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('returns 403 when a leader attempts an HRBP-only operation', async () => {
+    const { requireRole } = await import('../../lib/auth');
+    const req: any = { user: { id: '2', name: 'L', email: 'l@b.com', azureOid: '2', role: 'leader' } };
+    const res: any = { status: vi.fn().mockReturnThis(), json: vi.fn() };
+    const next = vi.fn();
+    requireRole('hrbp')(req, res, next);
+    expect(res.status).toHaveBeenCalledWith(403);
     expect(next).not.toHaveBeenCalled();
   });
 });

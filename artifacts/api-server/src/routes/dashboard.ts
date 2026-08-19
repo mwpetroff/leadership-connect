@@ -1,73 +1,59 @@
 import { Router, type IRouter } from "express";
-import { eq, gte, desc } from "drizzle-orm";
+import { desc } from "drizzle-orm";
 import {
   db,
   peopleTable,
   eventsTable,
   invitationsTable,
   virtualMeetingsTable,
-  virtualMeetingParticipantsTable,
 } from "@workspace/db";
-import { getTouchpointThresholdDays } from "../lib/settings-store";
+import { parseScopeQuery, effectiveScope, inFocusIds, type ScopePerson } from "../lib/scope";
+import { resolveViewer } from "../lib/viewer";
+import { loadCoverageSnapshot } from "../lib/coverage-data";
+import { GAP_LABELS, type GapKind } from "../lib/coverage";
+import { toPersonDto } from "../lib/person-dto";
 
 const router: IRouter = Router();
 
-async function getDaysSinceLastTouchpoint(personId: number): Promise<number | null> {
-  const attended = await db
-    .select({ startDate: eventsTable.startDate })
-    .from(invitationsTable)
-    .innerJoin(eventsTable, eq(invitationsTable.eventId, eventsTable.id))
-    .where(eq(invitationsTable.personId, personId));
-
-  const attended90 = attended.filter((a) => a.startDate).map((a) => new Date(a.startDate).getTime());
-
-  const participations = await db
-    .select({ meetingId: virtualMeetingParticipantsTable.meetingId })
-    .from(virtualMeetingParticipantsTable)
-    .where(eq(virtualMeetingParticipantsTable.personId, personId));
-
-  const meetingIds = participations.map((p) => p.meetingId);
-  let virtualDates: number[] = [];
-  if (meetingIds.length > 0) {
-    const all = await db
-      .select()
-      .from(virtualMeetingsTable)
-      .where(eq(virtualMeetingsTable.status, "completed"));
-    virtualDates = all
-      .filter((m) => meetingIds.includes(m.id) && m.scheduledDate)
-      .map((m) => new Date(m.scheduledDate!).getTime());
-  }
-
-  const allDates = [...attended90, ...virtualDates];
-  if (allDates.length === 0) return null;
-
-  const latestMs = Math.max(...allDates);
-  return Math.floor((Date.now() - latestMs) / (1000 * 60 * 60 * 24));
-}
-
-router.get("/dashboard/summary", async (_req, res): Promise<void> => {
+router.get("/dashboard/summary", async (req, res): Promise<void> => {
   const allPeople = await db.select().from(peopleTable).orderBy(peopleTable.name);
   const allEvents = await db.select().from(eventsTable).orderBy(eventsTable.startDate);
+  const viewer = await resolveViewer(req);
+  const scope = effectiveScope(parseScopeQuery(req.query as Record<string, unknown>), viewer);
+  const scopePeople: ScopePerson[] = allPeople.map((p) => ({
+    id: p.id,
+    managerId: p.managerId ?? null,
+    departmentId: p.departmentId ?? null,
+    hrbpId: p.hrbpId ?? null,
+    status: p.status ?? "active",
+  }));
+  const focus = inFocusIds(scopePeople, scope, viewer);
+  const focusedPeople = allPeople.filter((p) => focus.has(p.id));
 
   const today = new Date().toISOString().split("T")[0];
   const upcomingEvents = allEvents.filter((e) => e.startDate >= today);
 
-  const totalExecutives = allPeople.filter((p) => p.role === "executive").length;
-  const totalSecondaryLeaders = allPeople.filter((p) => p.role === "secondary_leader").length;
-  const totalStaff = allPeople.filter((p) => p.role === "staff").length;
+  const snapshot = await loadCoverageSnapshot(focus);
+  const personById = new Map(allPeople.map((p) => [p.id, p]));
+  const overdueRows = snapshot.rows.filter((r) => r.overdueCount > 0);
+  const needsTouchpoint = overdueRows
+    .slice(0, 10)
+    .map((r) => personById.get(r.personId))
+    .filter((p): p is NonNullable<typeof p> => p != null)
+    .map((p) => toPersonDto(p));
 
-  // Find staff needing touchpoint (no touchpoint in threshold+ days or never)
-  const thresholdDays = await getTouchpointThresholdDays();
-  const staffPeople = allPeople.filter((p) => p.role === "staff");
-  const staffWithDays = await Promise.all(
-    staffPeople.map(async (p) => ({ person: p, days: await getDaysSinceLastTouchpoint(p.id) }))
-  );
-  const needsTouchpoint = staffWithDays
-    .filter(({ days }) => days === null || days >= thresholdDays)
-    .map(({ person }) => person)
-    .slice(0, 10);
+  const counts = {
+    hrbp_1on1: 0,
+    leader_1on1: 0,
+    skip_level: 0,
+    onsite_leadership: 0,
+  };
+  for (const row of snapshot.rows) {
+    for (const gap of row.gaps) {
+      if (gap.overdue) counts[gap.kind] += 1;
+    }
+  }
 
-  // Recent activity (last 20 events from invitations + people added)
   const recentInvitations = await db
     .select({
       id: invitationsTable.id,
@@ -101,8 +87,8 @@ router.get("/dashboard/summary", async (_req, res): Promise<void> => {
   }[] = [];
 
   for (const inv of recentInvitations) {
-    const [person] = allPeople.filter((p) => p.id === inv.personId);
-    const [event] = allEvents.filter((e) => e.id === inv.eventId);
+    const person = allPeople.find((p) => p.id === inv.personId);
+    const event = allEvents.find((e) => e.id === inv.eventId);
     if (inv.status === "attended") {
       activityItems.push({
         type: "attendance",
@@ -144,35 +130,43 @@ router.get("/dashboard/summary", async (_req, res): Promise<void> => {
 
   activityItems.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
 
-  // Engagement by role
   const roles = ["executive", "secondary_leader", "staff"] as const;
-  const engagementByRole = await Promise.all(
-    roles.map(async (role) => {
-      const people = allPeople.filter((p) => p.role === role);
-      let recentlyEngaged = 0;
-      for (const p of people) {
-        const days = await getDaysSinceLastTouchpoint(p.id);
-        if (days !== null && days < thresholdDays) recentlyEngaged++;
-      }
-      const neverEngaged = people.filter(async (p) => {
-        const days = await getDaysSinceLastTouchpoint(p.id);
-        return days === null;
-      }).length;
-      return { role, total: people.length, recentlyEngaged, neverEngaged };
-    })
-  );
+  const engagementByRole = roles.map((role) => {
+    const people = focusedPeople.filter((p) => p.role === role);
+    const ids = new Set(people.map((p) => p.id));
+    const covered = snapshot.rows.filter((r) => ids.has(r.personId));
+    const neverEngaged = covered.filter((r) => r.gaps.every((g) => g.daysSince == null && !g.notApplicable)).length;
+    const recentlyEngaged = people.length - covered.filter((r) => r.overdueCount > 0).length;
+    return { role, total: people.length, recentlyEngaged: Math.max(0, recentlyEngaged), neverEngaged };
+  });
 
   res.json({
-    totalPeople: allPeople.length,
+    totalPeople: focusedPeople.length,
     totalEvents: allEvents.length,
     upcomingEvents: upcomingEvents.length,
-    totalExecutives,
-    totalSecondaryLeaders,
-    totalStaff,
-    staffNeedingTouchpoint: needsTouchpoint.length,
+    totalExecutives: focusedPeople.filter((p) => p.role === "executive").length,
+    totalSecondaryLeaders: focusedPeople.filter((p) => p.role === "secondary_leader").length,
+    totalStaff: focusedPeople.filter((p) => p.role === "staff").length,
+    staffNeedingTouchpoint: overdueRows.length,
     recentActivity: activityItems.slice(0, 20),
     engagementByRole,
     needsTouchpoint,
+    coverage: {
+      counts,
+      labels: GAP_LABELS,
+      people: snapshot.rows.slice(0, 25).map((row) => ({
+        person: personById.get(row.personId) ? toPersonDto(personById.get(row.personId)!) : null,
+        overdueCount: row.overdueCount,
+        gaps: row.gaps.map((g) => ({
+          kind: g.kind as GapKind,
+          label: GAP_LABELS[g.kind],
+          daysSince: g.daysSince,
+          thresholdDays: g.thresholdDays,
+          overdue: g.overdue,
+          notApplicable: g.notApplicable,
+        })),
+      })),
+    },
   });
 });
 

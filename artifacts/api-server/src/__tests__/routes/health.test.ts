@@ -5,6 +5,7 @@ import request from 'supertest';
 vi.mock('@workspace/db', () => ({
   db: {},
   peopleTable: {},
+  departmentsTable: { id: 'id', name: 'name' },
   eventsTable: {},
   eventLeadersTable: {},
   invitationsTable: {},

@@ -12,9 +12,10 @@ import {
 } from '@workspace/api-client-react';
 import { MapPin, Calendar, Video, ArrowRight, UserPlus, Zap, Check, UsersRound, X } from 'lucide-react';
 import { format } from 'date-fns';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/lib/auth';
+import { useScope } from '@/lib/scope';
 
 // ── Invite-all confirmation modal ─────────────────────────────────────────────
 
@@ -69,6 +70,22 @@ export default function SuggestionsHub() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { isLeader } = useAuth();
+  const { queryString } = useScope();
+
+  const { data: coverage } = useQuery<{
+    people: Array<{
+      person: { id: number; name: string; title?: string | null } | null;
+      overdueCount: number;
+      gaps: Array<{ kind: string; overdue: boolean; notApplicable: boolean; daysSince: number | null }>;
+    }>;
+  }>({
+    queryKey: ['suggestions-coverage', queryString],
+    queryFn: async () => {
+      const res = await fetch(`${import.meta.env.BASE_URL}api/suggestions/coverage?${queryString}`, { credentials: 'include' });
+      if (!res.ok) throw new Error('Failed to load coverage suggestions');
+      return res.json();
+    },
+  });
 
   // Track which event card has the "Invite all" confirmation open.
   const [inviteAllTarget, setInviteAllTarget] = useState<{
@@ -153,7 +170,41 @@ export default function SuggestionsHub() {
           <Zap className="h-8 w-8 text-amber-500" />
           Suggestions Hub
         </h1>
-        <p className="text-muted-foreground mt-1 text-lg">Smart recommendations to close engagement gaps.</p>
+        <p className="text-muted-foreground mt-1 text-lg">Close the four coverage clocks, then nearby events and 1:1s.</p>
+      </div>
+
+      <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
+        <div className="p-5 border-b border-border bg-amber-50/80">
+          <h2 className="text-lg font-bold text-amber-950">Coverage gaps in this view</h2>
+          <p className="text-sm text-amber-900/80 mt-1">
+            Ranked by how many clocks are overdue. Open a person to log the matching 1:1 or onsite.
+          </p>
+        </div>
+        <div className="divide-y divide-border">
+          {(coverage?.people ?? []).filter((row) => row.overdueCount > 0 && row.person).slice(0, 12).map((row) => (
+            <Link
+              key={row.person!.id}
+              href={`/people/${row.person!.id}`}
+              className="flex items-center justify-between gap-3 p-4 hover:bg-muted/20"
+            >
+              <div>
+                <div className="font-medium text-foreground">{row.person!.name}</div>
+                <div className="text-xs text-muted-foreground">{row.person!.title}</div>
+              </div>
+              <div className="flex flex-wrap gap-1 justify-end">
+                {row.gaps.filter((g) => g.overdue && !g.notApplicable).map((g) => (
+                  <span key={g.kind} className="text-[11px] px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-100">
+                    {g.kind.replace(/_/g, ' ')}
+                    {g.daysSince == null ? ' · never' : ` · ${g.daysSince}d`}
+                  </span>
+                ))}
+              </div>
+            </Link>
+          ))}
+          {(coverage?.people ?? []).filter((row) => row.overdueCount > 0).length === 0 && (
+            <div className="p-6 text-sm text-muted-foreground">No overdue clocks in this lens.</div>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">

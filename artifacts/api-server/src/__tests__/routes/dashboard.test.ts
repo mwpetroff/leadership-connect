@@ -41,7 +41,9 @@ const { mockDb, makeChain, mockStaff } = vi.hoisted(() => {
 vi.mock('@workspace/db', () => ({
   db: mockDb,
   peopleTable: { id: 'id', role: 'role', name: 'name' },
+  departmentsTable: { id: 'id', name: 'name' },
   eventsTable: { id: 'id', startDate: 'startDate' },
+  eventLeadersTable: { eventId: 'eventId', personId: 'personId' },
   invitationsTable: { id: 'id', eventId: 'eventId', personId: 'personId', status: 'status', createdAt: 'createdAt' },
   virtualMeetingsTable: { id: 'id', status: 'status', scheduledDate: 'scheduledDate', createdAt: 'createdAt' },
   virtualMeetingParticipantsTable: { meetingId: 'meetingId', personId: 'personId' },
@@ -92,9 +94,11 @@ describe('GET /api/dashboard/summary', () => {
     // then engagementByRole (getDaysSinceLastTouchpoint again per person per role).
     // Use mockReturnValueOnce for the first 2 calls, then mockReturnValue for the rest.
     mockDb.select
-      .mockReturnValueOnce(makeChain([mockStaff]))  // allPeople (1 staff)
+      .mockReturnValueOnce(makeChain([mockStaff]))  // allPeople
       .mockReturnValueOnce(makeChain([]))            // allEvents
-      .mockReturnValue(makeChain([]));              // all subsequent: touchpoint queries, recent*, engagement by role
+      .mockReturnValueOnce(makeChain([]))            // viewer
+      .mockReturnValueOnce(makeChain([mockStaff]))  // coverage people
+      .mockReturnValue(makeChain([]));              // remaining coverage/settings/activity queries
 
     const res = await request(app).get('/api/dashboard/summary');
     expect(res.status).toBe(200);
@@ -104,6 +108,7 @@ describe('GET /api/dashboard/summary', () => {
     expect(res.body.staffNeedingTouchpoint).toBe(1);
     expect(res.body.needsTouchpoint).toHaveLength(1);
     expect(res.body.needsTouchpoint[0].name).toBe('Staff Person');
+    expect(res.body.coverage.counts.hrbp_1on1).toBe(1);
   });
 
   it('includes recent activity items for invitations and meetings', async () => {
@@ -125,12 +130,22 @@ describe('GET /api/dashboard/summary', () => {
     };
 
     mockDb.select
-      .mockReturnValueOnce(makeChain([]))          // allPeople (no staff → no getDaysSinceLastTouchpoint calls)
+      .mockReturnValueOnce(makeChain([]))          // allPeople
       .mockReturnValueOnce(makeChain([]))           // allEvents
+      .mockReturnValueOnce(makeChain([]))           // viewer
+      .mockReturnValueOnce(makeChain([]))           // coverage people
+      .mockReturnValueOnce(makeChain([]))           // coverage departments
+      .mockReturnValueOnce(makeChain([]))           // participations
+      .mockReturnValueOnce(makeChain([]))           // completed meetings
+      .mockReturnValueOnce(makeChain([]))           // attended onsites
+      .mockReturnValueOnce(makeChain([]))           // event leaders
+      .mockReturnValueOnce(makeChain([]))           // cadence: hrbp
+      .mockReturnValueOnce(makeChain([]))           // cadence: leader
+      .mockReturnValueOnce(makeChain([]))           // cadence: skip
+      .mockReturnValueOnce(makeChain([]))           // cadence: onsite
       .mockReturnValueOnce(makeChain([mockInvitation])) // recentInvitations
       .mockReturnValueOnce(makeChain([mockMeeting]))    // recentMeetings
-      .mockReturnValueOnce(makeChain([]))          // recentPeople
-      .mockReturnValue(makeChain([]));
+      .mockReturnValueOnce(makeChain([]));          // recentPeople
 
     const res = await request(app).get('/api/dashboard/summary');
     expect(res.status).toBe(200);

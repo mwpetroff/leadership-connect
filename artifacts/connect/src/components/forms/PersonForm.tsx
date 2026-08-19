@@ -20,7 +20,13 @@ const schema = z.object({
   notes: z.string().optional().default(''),
 });
 
-export type PersonFormValues = z.infer<typeof schema> & { managerId?: number | null };
+export type PersonFormValues = z.infer<typeof schema> & {
+  managerId?: number | null;
+  hrbpId?: number | null;
+  departmentId?: number | null;
+  isHrbp?: boolean;
+  status?: 'active' | 'inactive';
+};
 
 interface Props {
   open: boolean;
@@ -46,9 +52,20 @@ export function PersonForm({ open, onClose, onSubmit, isPending, defaultValues, 
   const [managerId, setManagerId] = useState<number | null>(null);
   const [managerName, setManagerName] = useState<string | null>(null);
   const [showManagerPicker, setShowManagerPicker] = useState(false);
+  const [hrbpId, setHrbpId] = useState<number | null>(null);
+  const [hrbpName, setHrbpName] = useState<string | null>(null);
+  const [showHrbpPicker, setShowHrbpPicker] = useState(false);
+  const [isHrbp, setIsHrbp] = useState(false);
+  const [status, setStatus] = useState<'active' | 'inactive'>('active');
+  const [departmentId, setDepartmentId] = useState<number | null>(null);
+  const [departments, setDepartments] = useState<{ id: number; name: string }[]>([]);
 
   useEffect(() => {
     if (!open) return;
+    fetch(`${import.meta.env.BASE_URL}api/departments`, { credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : []))
+      .then(setDepartments)
+      .catch(() => setDepartments([]));
     if (defaultValues) {
       reset({
         name: defaultValues.name ?? '',
@@ -63,15 +80,32 @@ export function PersonForm({ open, onClose, onSubmit, isPending, defaultValues, 
       const mid = (defaultValues as any).managerId ?? null;
       setManagerId(mid);
       setManagerName(mid ? ((defaultValues as any).managerName ?? null) : null);
+      setHrbpId((defaultValues as any).hrbpId ?? null);
+      setHrbpName((defaultValues as any).hrbpName ?? null);
+      setIsHrbp(Boolean((defaultValues as any).isHrbp));
+      setStatus((defaultValues as any).status === 'inactive' ? 'inactive' : 'active');
+      setDepartmentId((defaultValues as any).departmentId ?? null);
     } else {
       reset(EMPTY);
       setManagerId(null);
       setManagerName(null);
+      setHrbpId(null);
+      setHrbpName(null);
+      setIsHrbp(false);
+      setStatus('active');
+      setDepartmentId(null);
     }
   }, [open, defaultValues, reset]);
 
   const handleFormSubmit = (values: PersonFormValues) => {
-    onSubmit({ ...values, managerId: managerId ?? null });
+    onSubmit({
+      ...values,
+      managerId: managerId ?? null,
+      hrbpId: hrbpId ?? null,
+      departmentId,
+      isHrbp,
+      status,
+    });
   };
 
   const f = 'w-full px-3 py-2 bg-muted/50 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary transition-colors';
@@ -107,7 +141,16 @@ export function PersonForm({ open, onClose, onSubmit, isPending, defaultValues, 
               </div>
               <div>
                 <label className={l}>Department</label>
-                <input {...register('department')} className={f} placeholder="Engineering" />
+                <select
+                  className={f}
+                  value={departmentId ?? ''}
+                  onChange={(e) => setDepartmentId(e.target.value ? Number(e.target.value) : null)}
+                >
+                  <option value="">Unassigned</option>
+                  {departments.map((d) => (
+                    <option key={d.id} value={d.id}>{d.name}</option>
+                  ))}
+                </select>
               </div>
             </div>
 
@@ -172,6 +215,37 @@ export function PersonForm({ open, onClose, onSubmit, isPending, defaultValues, 
               <textarea {...register('notes')} className={`${f} resize-none`} rows={3} placeholder="Optional notes…" />
             </div>
 
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className={l}>Status</label>
+                <select className={f} value={status} onChange={(e) => setStatus(e.target.value as 'active' | 'inactive')}>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive (FMLA / leave)</option>
+                </select>
+              </div>
+              <div className="flex items-end pb-2">
+                <label className="flex items-center gap-2 text-sm">
+                  <input type="checkbox" checked={isHrbp} onChange={(e) => setIsHrbp(e.target.checked)} />
+                  This person is an HRBP
+                </label>
+              </div>
+            </div>
+
+            <div>
+              <label className={l}>Assigned HRBP</label>
+              {hrbpName ? (
+                <div className="flex items-center gap-2 px-3 py-2 bg-muted/50 border border-border rounded-md">
+                  <span className="text-sm flex-1">{hrbpName}</span>
+                  <button type="button" onClick={() => { setHrbpId(null); setHrbpName(null); }} className="text-xs text-muted-foreground">Clear</button>
+                  <button type="button" onClick={() => setShowHrbpPicker(true)} className="text-xs text-primary">Change</button>
+                </div>
+              ) : (
+                <button type="button" onClick={() => setShowHrbpPicker(true)} className={`${f} text-left text-muted-foreground`}>
+                  Select HRBP…
+                </button>
+              )}
+            </div>
+
             <DialogFooter>
               <button type="button" onClick={onClose} disabled={isPending}
                 className="px-4 py-2 text-sm font-medium bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80">
@@ -193,6 +267,14 @@ export function PersonForm({ open, onClose, onSubmit, isPending, defaultValues, 
         onSelect={(p) => { setManagerId(p.id); setManagerName(p.name); }}
         title="Select Manager"
         description="Choose who this person reports to."
+        excludeIds={defaultValues?.id ? [defaultValues.id] : []}
+      />
+      <PersonPicker
+        open={showHrbpPicker}
+        onClose={() => setShowHrbpPicker(false)}
+        onSelect={(p) => { setHrbpId(p.id); setHrbpName(p.name); }}
+        title="Select HRBP"
+        description="Choose the HR business partner who supports this person."
         excludeIds={defaultValues?.id ? [defaultValues.id] : []}
       />
     </>

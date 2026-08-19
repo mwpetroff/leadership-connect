@@ -10,11 +10,20 @@ export const meetingStatusEnum = pgEnum("meeting_status", [
   "cancelled",
 ]);
 
+/** Classifies a virtual meeting for coverage clocks. `general` is the legacy default. */
+export const meetingKindEnum = pgEnum("meeting_kind", [
+  "general",
+  "hrbp_1on1",
+  "leader_1on1",
+  "skip_level",
+]);
+
 export const virtualMeetingsTable = pgTable("virtual_meetings", {
   id: serial("id").primaryKey(),
   title: text("title").notNull(),
   scheduledDate: date("scheduled_date", { mode: "string" }),
   status: meetingStatusEnum("status").notNull().default("suggested"),
+  meetingKind: meetingKindEnum("meeting_kind").notNull().default("general"),
   notes: text("notes"),
   hostId: integer("host_id").references(() => peopleTable.id, { onDelete: "set null" }),
   teamsJoinUrl: text("teams_join_url"),

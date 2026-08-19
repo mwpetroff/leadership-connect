@@ -1,4 +1,4 @@
-# Leadership Connect Backlog
+# Touchpoint Backlog
 
 This is a GitHub-friendly snapshot of the active product backlog. Replit's internal task specifications remain in `.local/tasks/`, which is intentionally ignored by Git.
 
@@ -15,6 +15,7 @@ These items are accepted and waiting for implementation:
 - Let meetings be scheduled at a specific time, not always 10 AM UTC
 - Make search work on mobile so staff can find anyone from their phone
 - Confirm the briefing endpoint stays fast as events get larger
+- Re-run OpenAPI codegen (`pnpm --filter @workspace/api-spec run codegen`) so generated hooks include lens params, `meetingKind`, and department CRUD (frontend currently uses fetch / extra query keys)
 
 ## Proposed work
 
@@ -28,6 +29,9 @@ These items are accepted and waiting for implementation:
 
 ## Recently completed
 
+- Touchpoint HRBP workspace: departments, explicit HRBP assignment, session lenses, org chart (tree + boxes), four coverage clocks
+- Department parent (division) picker in Settings
+- Suggestions Hub coverage-gap list (`GET /suggestions/coverage`)
 - Keep map coordinates fresh when bulk imports or seed scripts add people
 - Keep Teams meeting links accurate when a meeting date is rescheduled
 - Let HR download the current people directory as a CSV
