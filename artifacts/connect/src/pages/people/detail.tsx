@@ -6,15 +6,16 @@ import {
   getGetPersonQueryKey, getGetPersonEngagementQueryKey,
   getListPeopleQueryKey, getGetDashboardSummaryQueryKey,
 } from '@workspace/api-client-react';
-import { Mail, MapPin, Building2, Calendar, Video, Clock, Trash2, UserCircle2, Users } from 'lucide-react';
+import { Mail, MapPin, Building2, Calendar, Video, Trash2, UserCircle2, Users } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/components/ui/use-toast';
 import { PersonForm, type PersonFormValues } from '@/components/forms/PersonForm';
-import { VirtualMeetingForm, type VirtualMeetingFormValues } from '@/components/forms/VirtualMeetingForm';
+import { VirtualMeetingForm, type VirtualMeetingFormValues, scheduledDatePayload } from '@/components/forms/VirtualMeetingForm';
 import { ConfirmDialog } from '@/components/forms/ConfirmDialog';
 import { useAuth } from '@/lib/auth';
+import { formatMeetingWhen } from '@/lib/meeting-time';
 
 function RoleBadge({ role }: { role: string }) {
   if (role === 'executive') return <span className="inline-flex items-center rounded-md bg-indigo-50 px-2 py-1 text-xs font-medium text-indigo-700 ring-1 ring-inset ring-indigo-700/10 uppercase tracking-wider">Executive</span>;
@@ -33,7 +34,7 @@ export default function PersonDetail() {
   const [showTouchpoint, setShowTouchpoint] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
 
-  const { isAdmin } = useAuth();
+  const { isAdmin, isHrbp, isLeader, user } = useAuth();
 
   const { data: person, isLoading: loadingPerson } = useGetPerson(personId, {
     query: { enabled: !!personId, queryKey: getGetPersonQueryKey(personId) },
@@ -81,7 +82,7 @@ export default function PersonDetail() {
       const meeting = await createMeeting.mutateAsync({
         data: {
           title: values.title,
-          scheduledDate: values.scheduledDate || undefined,
+          scheduledDate: scheduledDatePayload(values),
           status: 'completed',
           hostId: values.hostId ? parseInt(values.hostId) : undefined,
           notes: values.notes || undefined,
@@ -141,7 +142,7 @@ export default function PersonDetail() {
             </div>
           </div>
           <div className="flex gap-2 flex-wrap shrink-0">
-            {isAdmin && (
+            {isHrbp && (
               <button
                 onClick={() => setShowEdit(true)}
                 className="px-4 py-2 bg-secondary text-secondary-foreground font-medium rounded-md shadow-sm hover:bg-secondary/80 transition-colors"
@@ -149,12 +150,12 @@ export default function PersonDetail() {
                 Edit Profile
               </button>
             )}
-            {isAdmin && (
+            {isLeader && (
               <button
                 onClick={() => setShowTouchpoint(true)}
                 className="px-4 py-2 bg-primary text-primary-foreground font-medium rounded-md shadow-sm hover:bg-primary/90 transition-colors"
               >
-                Log Touchpoint
+                Log 1:1
               </button>
             )}
             {isAdmin && (
@@ -218,23 +219,27 @@ export default function PersonDetail() {
         </div>
       )}
 
-      {/* Engagement Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-card border border-border rounded-xl p-5 shadow-sm">
-          <div className="flex items-center gap-3 text-muted-foreground mb-2">
-            <Clock className="h-5 w-5 text-amber-500" />
-            <span className="font-medium text-sm">Last Touchpoint</span>
-          </div>
-          <div className="text-2xl font-display font-bold">
-            {engagement.daysSinceLastTouchpoint !== null ? (
-              <span className={engagement.daysSinceLastTouchpoint > 90 ? 'text-destructive' : ''}>
-                {engagement.daysSinceLastTouchpoint} days ago
-              </span>
+      {/* Coverage clocks */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {(engagement.coverage?.gaps ?? []).map((gap) => (
+          <div key={gap.kind} className="bg-card border border-border rounded-xl p-5 shadow-sm">
+            <div className="text-sm font-medium text-muted-foreground mb-2">{gap.label ?? gap.kind.replace(/_/g, ' ')}</div>
+            {gap.notApplicable ? (
+              <div className="text-xl font-display font-bold text-muted-foreground">N/A</div>
             ) : (
-              <span className="text-muted-foreground text-xl">Never</span>
+              <div className={`text-2xl font-display font-bold ${gap.overdue ? 'text-destructive' : 'text-foreground'}`}>
+                {gap.daysSince == null ? 'Never' : `${gap.daysSince}d`}
+              </div>
             )}
+            <div className="text-xs text-muted-foreground mt-1">
+              {gap.notApplicable ? 'No skip-level manager' : `every ${gap.thresholdDays} days`}
+              {gap.overdue && !gap.notApplicable ? ' · overdue' : ''}
+            </div>
           </div>
-        </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="bg-card border border-border rounded-xl p-5 shadow-sm">
           <div className="flex items-center gap-3 text-muted-foreground mb-2">
             <MapPin className="h-5 w-5 text-indigo-500" />
@@ -311,7 +316,7 @@ export default function PersonDetail() {
                         {vm.title}
                       </Link>
                       <div className="text-sm text-muted-foreground mt-1 flex items-center gap-2">
-                        {vm.scheduledDate ? format(new Date(vm.scheduledDate), 'MMM d, yyyy') : 'Unscheduled'}
+                        {formatMeetingWhen(vm.scheduledDate)}
                         {vm.host && <><span>·</span>Hosted by {vm.host.name}</>}
                       </div>
                     </div>
@@ -352,6 +357,9 @@ export default function PersonDetail() {
         onSubmit={handleLogTouchpoint}
         isPending={isBusy}
         defaultTitle={`Check-in with ${person.name}`}
+        defaultMeetingKind="hrbp_1on1"
+        defaultHostId={user?.personId ?? null}
+        mode="log"
       />
 
       <ConfirmDialog

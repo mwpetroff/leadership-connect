@@ -1,4 +1,4 @@
-import { pgTable, serial, integer, text, timestamp, date, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, text, timestamp, pgEnum } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { peopleTable } from "./people";
@@ -21,7 +21,7 @@ export const meetingKindEnum = pgEnum("meeting_kind", [
 export const virtualMeetingsTable = pgTable("virtual_meetings", {
   id: serial("id").primaryKey(),
   title: text("title").notNull(),
-  scheduledDate: date("scheduled_date", { mode: "string" }),
+  scheduledDate: timestamp("scheduled_date", { withTimezone: true, mode: "date" }),
   status: meetingStatusEnum("status").notNull().default("suggested"),
   meetingKind: meetingKindEnum("meeting_kind").notNull().default("general"),
   notes: text("notes"),

@@ -103,7 +103,7 @@ export default function Dashboard() {
                 </div>
               </div>
               <Link
-                href="/virtual-meetings"
+                href={`/people/${row.person!.id}`}
                 className="shrink-0 px-3 py-1.5 text-xs font-semibold bg-primary text-primary-foreground rounded-lg"
               >
                 Log 1:1

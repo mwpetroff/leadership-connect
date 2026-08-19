@@ -299,7 +299,7 @@ export const GetPersonEngagementResponse = zod.object({
   "virtualMeetings": zod.array(zod.object({
   "id": zod.number().int(),
   "title": zod.string(),
-  "scheduledDate": zod.coerce.date().nullish(),
+  "scheduledDate": zod.coerce.date().nullish().describe('Instant the meeting is scheduled for. Date-only values are accepted and stored as 10:00 UTC.'),
   "status": zod.enum(['suggested', 'scheduled', 'completed', 'cancelled']),
   "notes": zod.string().nullish(),
   "hostId": zod.number().int().nullish(),
@@ -332,7 +332,38 @@ export const GetPersonEngagementResponse = zod.object({
 })),
   "daysSinceLastTouchpoint": zod.number().int().nullable(),
   "totalInPersonAttended": zod.number().int().optional(),
-  "totalVirtualCompleted": zod.number().int().optional()
+  "totalVirtualCompleted": zod.number().int().optional(),
+  "coverage": zod.object({
+  "person": zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "email": zod.string(),
+  "title": zod.string().nullish(),
+  "department": zod.string().nullish().describe('Department display name (derived from departmentId)'),
+  "departmentId": zod.number().int().nullish(),
+  "hrbpId": zod.number().int().nullish(),
+  "hrbpName": zod.string().nullish(),
+  "managerName": zod.string().nullish(),
+  "isHrbp": zod.boolean().optional(),
+  "status": zod.enum(['active', 'inactive']).optional(),
+  "role": zod.enum(['executive', 'secondary_leader', 'staff']),
+  "homeCity": zod.string(),
+  "homeState": zod.string(),
+  "managerId": zod.number().int().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date().optional()
+}).optional(),
+  "overdueCount": zod.number().int(),
+  "gaps": zod.array(zod.object({
+  "kind": zod.enum(['hrbp_1on1', 'leader_1on1', 'skip_level', 'onsite_leadership']),
+  "daysSince": zod.number().int().nullish(),
+  "thresholdDays": zod.number().int(),
+  "overdue": zod.boolean(),
+  "notApplicable": zod.boolean(),
+  "label": zod.string().optional()
+}))
+}).optional()
 })
 
 
@@ -1153,7 +1184,7 @@ export const ListVirtualMeetingsQueryParams = zod.object({
 export const ListVirtualMeetingsResponseItem = zod.object({
   "id": zod.number().int(),
   "title": zod.string(),
-  "scheduledDate": zod.coerce.date().nullish(),
+  "scheduledDate": zod.coerce.date().nullish().describe('Instant the meeting is scheduled for. Date-only values are accepted and stored as 10:00 UTC.'),
   "status": zod.enum(['suggested', 'scheduled', 'completed', 'cancelled']),
   "notes": zod.string().nullish(),
   "hostId": zod.number().int().nullish(),
@@ -1195,7 +1226,7 @@ export const ListVirtualMeetingsResponse = zod.array(ListVirtualMeetingsResponse
 
 export const CreateVirtualMeetingBody = zod.object({
   "title": zod.string().min(1),
-  "scheduledDate": zod.coerce.date().optional(),
+  "scheduledDate": zod.coerce.date().optional().describe('Instant the meeting is scheduled for. Date-only values are accepted and stored as 10:00 UTC.'),
   "status": zod.enum(['suggested', 'scheduled', 'completed', 'cancelled']).optional(),
   "notes": zod.string().optional(),
   "hostId": zod.number().int().optional(),
@@ -1205,7 +1236,7 @@ export const CreateVirtualMeetingBody = zod.object({
 export const CreateVirtualMeetingResponse = zod.object({
   "id": zod.number().int(),
   "title": zod.string(),
-  "scheduledDate": zod.coerce.date().nullish(),
+  "scheduledDate": zod.coerce.date().nullish().describe('Instant the meeting is scheduled for. Date-only values are accepted and stored as 10:00 UTC.'),
   "status": zod.enum(['suggested', 'scheduled', 'completed', 'cancelled']),
   "notes": zod.string().nullish(),
   "hostId": zod.number().int().nullish(),
@@ -1248,7 +1279,7 @@ export const GetVirtualMeetingParams = zod.object({
 export const GetVirtualMeetingResponse = zod.object({
   "id": zod.number().int(),
   "title": zod.string(),
-  "scheduledDate": zod.coerce.date().nullish(),
+  "scheduledDate": zod.coerce.date().nullish().describe('Instant the meeting is scheduled for. Date-only values are accepted and stored as 10:00 UTC.'),
   "status": zod.enum(['suggested', 'scheduled', 'completed', 'cancelled']),
   "notes": zod.string().nullish(),
   "hostId": zod.number().int().nullish(),
@@ -1293,7 +1324,7 @@ export const UpdateVirtualMeetingParams = zod.object({
 
 export const UpdateVirtualMeetingBody = zod.object({
   "title": zod.string().min(1).optional(),
-  "scheduledDate": zod.coerce.date().optional(),
+  "scheduledDate": zod.coerce.date().optional().describe('Instant the meeting is scheduled for. Date-only values are accepted and stored as 10:00 UTC.'),
   "status": zod.enum(['suggested', 'scheduled', 'completed', 'cancelled']).optional(),
   "notes": zod.string().optional(),
   "hostId": zod.number().int().optional(),
@@ -1303,7 +1334,7 @@ export const UpdateVirtualMeetingBody = zod.object({
 export const UpdateVirtualMeetingResponse = zod.object({
   "id": zod.number().int(),
   "title": zod.string(),
-  "scheduledDate": zod.coerce.date().nullish(),
+  "scheduledDate": zod.coerce.date().nullish().describe('Instant the meeting is scheduled for. Date-only values are accepted and stored as 10:00 UTC.'),
   "status": zod.enum(['suggested', 'scheduled', 'completed', 'cancelled']),
   "notes": zod.string().nullish(),
   "hostId": zod.number().int().nullish(),

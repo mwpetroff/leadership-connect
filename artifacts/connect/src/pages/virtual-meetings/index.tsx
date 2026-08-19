@@ -4,12 +4,12 @@ import {
   useListVirtualMeetings, useCreateVirtualMeeting, getListVirtualMeetingsQueryKey,
 } from '@workspace/api-client-react';
 import { Video, Calendar, User, Plus, Users } from 'lucide-react';
-import { format } from 'date-fns';
+import { formatMeetingWhen } from '@/lib/meeting-time';
 import { cn } from '@/lib/utils';
 import { useQueryClient } from '@tanstack/react-query';
 import { keepPreviousData } from '@tanstack/react-query';
 import { useToast } from '@/components/ui/use-toast';
-import { VirtualMeetingForm, type VirtualMeetingFormValues } from '@/components/forms/VirtualMeetingForm';
+import { VirtualMeetingForm, type VirtualMeetingFormValues, scheduledDatePayload } from '@/components/forms/VirtualMeetingForm';
 import type { ListVirtualMeetingsStatus } from '@workspace/api-client-react';
 import { useAuth } from '@/lib/auth';
 import { useScope, scopeToListParams } from '@/lib/scope';
@@ -17,7 +17,7 @@ import { useScope, scopeToListParams } from '@/lib/scope';
 export default function VirtualMeetings() {
   const [statusFilter, setStatusFilter] = useState<ListVirtualMeetingsStatus | undefined>();
   const [showCreate, setShowCreate] = useState(false);
-  const { isAdmin, isLeader } = useAuth();
+  const { isLeader } = useAuth();
   const { scope } = useScope();
 
   const queryClient = useQueryClient();
@@ -44,7 +44,7 @@ export default function VirtualMeetings() {
     createMeeting.mutate({
       data: {
         title: values.title,
-        scheduledDate: values.scheduledDate || undefined,
+        scheduledDate: scheduledDatePayload(values),
         status: values.status,
         hostId: values.hostId ? parseInt(values.hostId) : undefined,
         notes: values.notes || undefined,
@@ -132,16 +132,10 @@ export default function VirtualMeetings() {
                         </span>
                       </div>
                       <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground mt-2">
-                        {meeting.scheduledDate ? (
-                          <div className="flex items-center gap-1.5 font-medium text-foreground/80">
-                            <Calendar className="h-4 w-4" />
-                            {format(new Date(meeting.scheduledDate), 'EEEE, MMM d, yyyy')}
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-1.5">
-                            <Calendar className="h-4 w-4" /> Unscheduled
-                          </div>
-                        )}
+                        <div className="flex items-center gap-1.5 font-medium text-foreground/80">
+                          <Calendar className="h-4 w-4" />
+                          {formatMeetingWhen(meeting.scheduledDate)}
+                        </div>
                         {meeting.host && (
                           <div className="flex items-center gap-1.5">
                             <User className="h-4 w-4" />

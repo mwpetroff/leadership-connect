@@ -12,7 +12,10 @@ import type { VirtualMeetingStatus } from './virtualMeetingStatus';
 export interface VirtualMeeting {
   id: number;
   title: string;
-  /** @nullable */
+  /**
+     * Instant the meeting is scheduled for. Date-only values are accepted and stored as 10:00 UTC.
+     * @nullable
+     */
   scheduledDate?: Date | null;
   status: VirtualMeetingStatus;
   /** @nullable */

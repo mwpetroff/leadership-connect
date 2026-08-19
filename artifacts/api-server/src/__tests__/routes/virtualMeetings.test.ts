@@ -207,6 +207,30 @@ describe('POST /api/virtual-meetings — Teams provisioning for directly-schedul
     expect(payload.endDateTime).toBe(`${scheduledDate}T11:00:00Z`);
   });
 
+  it('sends the chosen local instant to Graph instead of defaulting to 10:00 UTC', async () => {
+    const scheduledDate = '2027-09-15T14:30:00.000Z';
+    const insertedMeeting = { ...mockMeeting, status: 'scheduled', scheduledDate, teamsJoinUrl: null, graphMeetingId: null };
+    mockDb.insert.mockReturnValue(makeChain([insertedMeeting]));
+    mockDb.update.mockReturnValue(makeChain([]));
+    mockDb.select.mockReturnValue(makeChain([]));
+
+    mockGraph.getGraphAccessToken.mockResolvedValueOnce('test-token');
+    mockGraph.createTeamsMeeting.mockResolvedValueOnce({
+      meetingId: 'gm-time-test',
+      joinUrl: 'https://teams.microsoft.com/l/meetup-join/time-test',
+    });
+
+    await request(app).post('/api/virtual-meetings').send({
+      title: 'Timed 1:1',
+      status: 'scheduled',
+      scheduledDate,
+    });
+
+    const [, payload] = mockGraph.createTeamsMeeting.mock.calls[0] as [string, { startDateTime: string; endDateTime: string }];
+    expect(payload.startDateTime).toBe('2027-09-15T14:30:00Z');
+    expect(payload.endDateTime).toBe('2027-09-15T15:30:00Z');
+  });
+
   it('does not call Graph when meeting is created as suggested', async () => {
     const suggestedMeeting = { ...mockMeeting, status: 'suggested' };
     mockDb.insert.mockReturnValue(makeChain([suggestedMeeting]));

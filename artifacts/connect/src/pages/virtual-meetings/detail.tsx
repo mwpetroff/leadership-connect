@@ -8,7 +8,7 @@ import {
   getListVirtualMeetingsQueryKey,
 } from '@workspace/api-client-react';
 import { Video, Calendar as CalendarIcon, Users, User, MessageSquare, Check, X, Plus, Trash2, ExternalLink } from 'lucide-react';
-import { format } from 'date-fns';
+import { formatMeetingWhen } from '@/lib/meeting-time';
 import { useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/components/ui/use-toast';
@@ -174,9 +174,7 @@ export default function VirtualMeetingDetail() {
             <div>
               <div className="text-sm font-medium text-foreground">Date &amp; Time</div>
               <div className="text-sm text-muted-foreground mt-0.5">
-                {meeting.scheduledDate
-                  ? format(new Date(meeting.scheduledDate), 'EEEE, MMMM d, yyyy')
-                  : 'Needs Scheduling'}
+                {meeting.scheduledDate ? formatMeetingWhen(meeting.scheduledDate) : 'Needs Scheduling'}
               </div>
             </div>
           </div>

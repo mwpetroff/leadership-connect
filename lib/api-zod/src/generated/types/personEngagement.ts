@@ -5,6 +5,7 @@
  * Leadership Engagement Platform API
  * OpenAPI spec version: 0.1.0
  */
+import type { CoveragePersonRow } from './coveragePersonRow';
 import type { Invitation } from './invitation';
 import type { Person } from './person';
 import type { VirtualMeeting } from './virtualMeeting';
@@ -17,4 +18,5 @@ export interface PersonEngagement {
   daysSinceLastTouchpoint: number | null;
   totalInPersonAttended?: number;
   totalVirtualCompleted?: number;
+  coverage?: CoveragePersonRow;
 }

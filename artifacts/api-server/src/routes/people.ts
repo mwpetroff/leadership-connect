@@ -18,6 +18,8 @@ import { getSetting } from "../lib/settings-store";
 import { parseScopeQuery, inFocusIds, effectiveScope, type ScopePerson } from "../lib/scope";
 import { resolveViewer } from "../lib/viewer";
 import { toPersonDto } from "../lib/person-dto";
+import { loadCoverageSnapshot } from "../lib/coverage-data";
+import { GAP_LABELS, type GapKind } from "../lib/coverage";
 import {
   detectHeaders,
   normalizeImportKey,
@@ -705,6 +707,27 @@ router.get("/people/:id/engagement", async (req, res): Promise<void> => {
   const totalInPersonAttended = invitations.filter((i) => i.status === "attended").length;
   const totalVirtualCompleted = virtualMeetings.filter((m) => m.status === "completed").length;
 
+  const snapshot = await loadCoverageSnapshot(new Set([params.data.id]));
+  const coverageRow = snapshot.rows.find((r) => r.personId === params.data.id);
+  const coverage = coverageRow
+    ? {
+        person: toPersonDto(person as unknown as Parameters<typeof toPersonDto>[0]),
+        overdueCount: coverageRow.overdueCount,
+        gaps: coverageRow.gaps.map((g) => ({
+          kind: g.kind as GapKind,
+          label: GAP_LABELS[g.kind],
+          daysSince: g.daysSince,
+          thresholdDays: g.thresholdDays,
+          overdue: g.overdue,
+          notApplicable: g.notApplicable,
+        })),
+      }
+    : {
+        person: toPersonDto(person as unknown as Parameters<typeof toPersonDto>[0]),
+        overdueCount: 0,
+        gaps: [],
+      };
+
   res.json({
     person,
     invitations: invitations.map((inv) => ({
@@ -718,6 +741,7 @@ router.get("/people/:id/engagement", async (req, res): Promise<void> => {
     daysSinceLastTouchpoint,
     totalInPersonAttended,
     totalVirtualCompleted,
+    coverage,
   });
 });
 

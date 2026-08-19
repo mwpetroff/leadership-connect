@@ -2,7 +2,21 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Reset all mocks before every test so Once-queue values don't bleed across
 // describe blocks (e.g. POST beforeEach leaving unconsumed queued values).
-beforeEach(() => { vi.resetAllMocks(); });
+beforeEach(() => {
+  vi.resetAllMocks();
+  mockLoadCoverage.mockResolvedValue({
+    rows: [{
+      personId: 1,
+      overdueCount: 1,
+      gaps: [
+        { kind: 'hrbp_1on1', daysSince: null, thresholdDays: 30, overdue: true, notApplicable: false },
+        { kind: 'leader_1on1', daysSince: 3, thresholdDays: 14, overdue: false, notApplicable: false },
+        { kind: 'skip_level', daysSince: null, thresholdDays: 90, overdue: false, notApplicable: true },
+        { kind: 'onsite_leadership', daysSince: 40, thresholdDays: 180, overdue: false, notApplicable: false },
+      ],
+    }],
+  });
+});
 import request from 'supertest';
 
 // ─── Hoisted mock setup ───────────────────────────────────────────────────────
@@ -10,7 +24,7 @@ import request from 'supertest';
 // declarations, so mockDb MUST be created with vi.hoisted() to be accessible
 // inside the factory without a TDZ (temporal dead zone) error.
 
-const { mockDb, mockPerson, makeChain } = vi.hoisted(() => {
+const { mockDb, mockPerson, makeChain, mockLoadCoverage } = vi.hoisted(() => {
   const mockPerson = {
     id: 1,
     name: 'Jane Smith',
@@ -44,8 +58,14 @@ const { mockDb, mockPerson, makeChain } = vi.hoisted(() => {
     delete: vi.fn(),
   };
 
-  return { mockDb, mockPerson, makeChain };
+  const mockLoadCoverage = vi.fn();
+
+  return { mockDb, mockPerson, makeChain, mockLoadCoverage };
 });
+
+vi.mock('../../lib/coverage-data', () => ({
+  loadCoverageSnapshot: mockLoadCoverage,
+}));
 
 vi.mock('@workspace/db', () => ({
   db: mockDb,
@@ -291,6 +311,8 @@ describe('GET /api/people/:id/engagement', () => {
     expect(res.body.daysSinceLastTouchpoint).toBeNull();
     expect(res.body.totalInPersonAttended).toBe(0);
     expect(res.body.totalVirtualCompleted).toBe(0);
+    expect(res.body.coverage.gaps).toHaveLength(4);
+    expect(res.body.coverage.gaps[0].kind).toBe('hrbp_1on1');
   });
 
   it('computes daysSinceLastTouchpoint from an attended event', async () => {

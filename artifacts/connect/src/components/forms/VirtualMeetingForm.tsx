@@ -6,6 +6,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
 import { useListPeople, getListPeopleQueryKey } from '@workspace/api-client-react';
+import { fromDatetimeLocalValue, toDatetimeLocalValue } from '@/lib/meeting-time';
 
 const schema = z.object({
   title: z.string().min(1, 'Title is required'),
@@ -25,33 +26,50 @@ interface Props {
   isPending: boolean;
   defaultTitle?: string;
   defaultStatus?: 'suggested' | 'scheduled';
+  defaultMeetingKind?: VirtualMeetingFormValues['meetingKind'];
+  defaultHostId?: number | null;
+  /** Log a completed 1:1 (hides schedule status; time is when it happened). */
+  mode?: 'schedule' | 'log';
 }
 
-const EMPTY = (title = '', status: 'suggested' | 'scheduled' = 'scheduled'): VirtualMeetingFormValues => ({
-  title, scheduledDate: '', hostId: '', notes: '', status, meetingKind: 'general',
+const EMPTY = (
+  title = '',
+  status: 'suggested' | 'scheduled' = 'scheduled',
+  kind: VirtualMeetingFormValues['meetingKind'] = 'general',
+  hostId = '',
+  when = '',
+): VirtualMeetingFormValues => ({
+  title, scheduledDate: when, hostId, notes: '', status, meetingKind: kind,
 });
 
 export function VirtualMeetingForm({
   open, onClose, onSubmit, isPending, defaultTitle = '', defaultStatus = 'scheduled',
+  defaultMeetingKind = 'general', defaultHostId = null, mode = 'schedule',
 }: Props) {
   const { register, handleSubmit, reset, formState: { errors } } = useForm<VirtualMeetingFormValues>({
     resolver: zodResolver(schema),
-    defaultValues: EMPTY(defaultTitle, defaultStatus),
+    defaultValues: EMPTY(defaultTitle, defaultStatus, defaultMeetingKind),
   });
 
-  const { data: executives } = useListPeople(
-    { role: 'executive' },
-    { query: { enabled: open, queryKey: getListPeopleQueryKey({ role: 'executive' }) } },
+  const { data: directory = [] } = useListPeople(
+    { lens: 'all', includeInactive: false },
+    { query: { enabled: open, queryKey: getListPeopleQueryKey({ lens: 'all', includeInactive: false }) } },
   );
-  const { data: leaders } = useListPeople(
-    { role: 'secondary_leader' },
-    { query: { enabled: open, queryKey: getListPeopleQueryKey({ role: 'secondary_leader' }) } },
+  const allHosts = directory.filter(
+    (h) => h.isHrbp || h.role === 'executive' || h.role === 'secondary_leader',
   );
-  const allHosts = [...(executives ?? []), ...(leaders ?? [])];
 
   useEffect(() => {
-    if (open) reset(EMPTY(defaultTitle, defaultStatus));
-  }, [open, defaultTitle, defaultStatus, reset]);
+    if (!open) return;
+    const when = mode === 'log' ? toDatetimeLocalValue(new Date()) : '';
+    reset(EMPTY(
+      defaultTitle,
+      defaultStatus,
+      defaultMeetingKind,
+      defaultHostId != null ? String(defaultHostId) : '',
+      when,
+    ));
+  }, [open, defaultTitle, defaultStatus, defaultMeetingKind, defaultHostId, mode, reset]);
 
   const f = 'w-full px-3 py-2 bg-muted/50 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary transition-colors';
   const l = 'block text-sm font-medium text-foreground mb-1';
@@ -61,7 +79,7 @@ export function VirtualMeetingForm({
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Schedule Virtual Meeting</DialogTitle>
+          <DialogTitle>{mode === 'log' ? 'Log 1:1' : 'Schedule Virtual Meeting'}</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -71,13 +89,15 @@ export function VirtualMeetingForm({
             {errors.title && <p className={e}>{errors.title.message}</p>}
           </div>
 
-          <div>
-            <label className={l}>Status</label>
-            <select {...register('status')} className={f}>
-              <option value="scheduled">Scheduled (has a date)</option>
-              <option value="suggested">Suggested (no date yet)</option>
-            </select>
-          </div>
+          {mode === 'schedule' && (
+            <div>
+              <label className={l}>Status</label>
+              <select {...register('status')} className={f}>
+                <option value="scheduled">Scheduled (has a time)</option>
+                <option value="suggested">Suggested (no time yet)</option>
+              </select>
+            </div>
+          )}
 
           <div>
             <label className={l}>Coverage clock</label>
@@ -90,8 +110,8 @@ export function VirtualMeetingForm({
           </div>
 
           <div>
-            <label className={l}>Date</label>
-            <input {...register('scheduledDate')} type="date" className={f} />
+            <label className={l}>{mode === 'log' ? 'When' : 'Date and time'}</label>
+            <input {...register('scheduledDate')} type="datetime-local" className={f} />
           </div>
 
           <div>
@@ -100,7 +120,7 @@ export function VirtualMeetingForm({
               <option value="">No host assigned</option>
               {allHosts.map((h) => (
                 <option key={h.id} value={String(h.id)}>
-                  {h.name} — {h.role === 'executive' ? 'Executive' : 'Leader'}
+                  {h.name} — {h.isHrbp ? 'HRBP' : h.role === 'executive' ? 'Executive' : 'Leader'}
                 </option>
               ))}
             </select>
@@ -118,11 +138,15 @@ export function VirtualMeetingForm({
             </button>
             <button type="submit" disabled={isPending}
               className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50">
-              {isPending ? 'Saving…' : 'Create Meeting'}
+              {isPending ? 'Saving…' : mode === 'log' ? 'Log 1:1' : 'Create Meeting'}
             </button>
           </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
   );
+}
+
+export function scheduledDatePayload(values: VirtualMeetingFormValues): string | undefined {
+  return fromDatetimeLocalValue(values.scheduledDate ?? '');
 }
