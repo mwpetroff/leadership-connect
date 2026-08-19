@@ -262,7 +262,10 @@ export const VirtualMeetingMeetingKind = {
 export interface VirtualMeeting {
   id: number;
   title: string;
-  /** @nullable */
+  /**
+     * Instant the meeting is scheduled for. Date-only values are accepted and stored as 10:00 UTC.
+     * @nullable
+     */
   scheduledDate?: string | null;
   status: VirtualMeetingStatus;
   /** @nullable */
@@ -287,6 +290,32 @@ export interface VirtualMeeting {
   updatedAt?: string;
 }
 
+export type CoverageGapKind = typeof CoverageGapKind[keyof typeof CoverageGapKind];
+
+
+export const CoverageGapKind = {
+  hrbp_1on1: 'hrbp_1on1',
+  leader_1on1: 'leader_1on1',
+  skip_level: 'skip_level',
+  onsite_leadership: 'onsite_leadership',
+} as const;
+
+export interface CoverageGap {
+  kind: CoverageGapKind;
+  /** @nullable */
+  daysSince?: number | null;
+  thresholdDays: number;
+  overdue: boolean;
+  notApplicable: boolean;
+  label?: string;
+}
+
+export interface CoveragePersonRow {
+  person?: Person;
+  overdueCount: number;
+  gaps: CoverageGap[];
+}
+
 export interface PersonEngagement {
   person: Person;
   invitations: Invitation[];
@@ -295,6 +324,7 @@ export interface PersonEngagement {
   daysSinceLastTouchpoint: number | null;
   totalInPersonAttended?: number;
   totalVirtualCompleted?: number;
+  coverage?: CoveragePersonRow;
 }
 
 export interface EventSponsorInput {
@@ -455,6 +485,7 @@ export const VirtualMeetingInputMeetingKind = {
 export interface VirtualMeetingInput {
   /** @minLength 1 */
   title: string;
+  /** Instant the meeting is scheduled for. Date-only values are accepted and stored as 10:00 UTC. */
   scheduledDate?: string;
   status?: VirtualMeetingInputStatus;
   notes?: string;
@@ -485,6 +516,7 @@ export const VirtualMeetingUpdateMeetingKind = {
 export interface VirtualMeetingUpdate {
   /** @minLength 1 */
   title?: string;
+  /** Instant the meeting is scheduled for. Date-only values are accepted and stored as 10:00 UTC. */
   scheduledDate?: string;
   status?: VirtualMeetingUpdateStatus;
   notes?: string;
@@ -528,32 +560,6 @@ export interface RoleEngagement {
   total: number;
   recentlyEngaged: number;
   neverEngaged: number;
-}
-
-export type CoverageGapKind = typeof CoverageGapKind[keyof typeof CoverageGapKind];
-
-
-export const CoverageGapKind = {
-  hrbp_1on1: 'hrbp_1on1',
-  leader_1on1: 'leader_1on1',
-  skip_level: 'skip_level',
-  onsite_leadership: 'onsite_leadership',
-} as const;
-
-export interface CoverageGap {
-  kind: CoverageGapKind;
-  /** @nullable */
-  daysSince?: number | null;
-  thresholdDays: number;
-  overdue: boolean;
-  notApplicable: boolean;
-  label?: string;
-}
-
-export interface CoveragePersonRow {
-  person?: Person;
-  overdueCount: number;
-  gaps: CoverageGap[];
 }
 
 export type DashboardCoverageCounts = {[key: string]: number};

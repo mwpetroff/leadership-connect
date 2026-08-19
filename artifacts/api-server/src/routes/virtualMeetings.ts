@@ -28,12 +28,13 @@ import {
 } from "../lib/graph";
 import { eventTouchesScope } from "../lib/scope";
 import { resolveRequestFocus } from "../lib/scope-request";
+import { parseScheduledInput, teamsOneHourWindow } from "../lib/meeting-time";
 
 const router: IRouter = Router();
 
-/** Convert a Zod-coerced Date (or already-string) to 'YYYY-MM-DD' for Drizzle date columns. */
-const toDateStr = (d: Date | string): string =>
-  d instanceof Date ? d.toISOString().split("T")[0] : d;
+function scheduledFromBody(body: { scheduledDate?: unknown }, coerced?: Date): Date | undefined {
+  return parseScheduledInput(body.scheduledDate ?? coerced);
+}
 
 async function meetingWithMeta(meeting: typeof virtualMeetingsTable.$inferSelect) {
   const participants = await db
@@ -68,21 +69,21 @@ async function provisionTeamsMeeting(
   req: Request,
   meetingId: number,
   title: string,
-  scheduledDate: string | null | undefined,
+  scheduledDate: Date | string | null | undefined,
 ): Promise<{ teamsJoinUrl: string; graphMeetingId: string } | null> {
   try {
     const token = await getGraphAccessToken(req);
     if (!token) return null;
 
-    // Use the scheduled date at 10:00–11:00 UTC; fall back to today + 7 days.
-    const baseDate = scheduledDate
-      ? scheduledDate
-      : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+    const start =
+      parseScheduledInput(scheduledDate) ??
+      new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const window = teamsOneHourWindow(start);
 
     const teamsResult = await createTeamsMeeting(token, {
       subject: title,
-      startDateTime: `${baseDate}T10:00:00Z`,
-      endDateTime: `${baseDate}T11:00:00Z`,
+      startDateTime: window.startDateTime,
+      endDateTime: window.endDateTime,
     });
 
     if (!teamsResult) return null;
@@ -158,7 +159,7 @@ router.post("/virtual-meetings", async (req, res): Promise<void> => {
     .insert(virtualMeetingsTable)
     .values({
       ...parsed.data,
-      scheduledDate: parsed.data.scheduledDate ? toDateStr(parsed.data.scheduledDate) : undefined,
+      scheduledDate: scheduledFromBody(req.body as { scheduledDate?: unknown }, parsed.data.scheduledDate),
       meetingKind: ["general", "hrbp_1on1", "leader_1on1", "skip_level"].includes(
         String((req.body as { meetingKind?: string }).meetingKind),
       )
@@ -237,7 +238,12 @@ router.patch("/virtual-meetings/:id", async (req, res): Promise<void> => {
   const setData: Record<string, unknown> = {
     ...restData,
     ...(scheduledDate !== undefined
-      ? { scheduledDate: scheduledDate ? toDateStr(scheduledDate) : undefined }
+      ? {
+          scheduledDate: scheduledFromBody(
+            req.body as { scheduledDate?: unknown },
+            scheduledDate,
+          ),
+        }
       : {}),
   };
 
@@ -281,10 +287,13 @@ router.patch("/virtual-meetings/:id", async (req, res): Promise<void> => {
     try {
       const token = await getGraphAccessToken(req);
       if (token) {
-        const newDateStr = meeting.scheduledDate ?? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+        const start =
+          parseScheduledInput(meeting.scheduledDate) ??
+          new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+        const window = teamsOneHourWindow(start);
         const updated = await updateTeamsMeeting(token, meeting.graphMeetingId, {
-          startDateTime: `${newDateStr}T10:00:00Z`,
-          endDateTime: `${newDateStr}T11:00:00Z`,
+          startDateTime: window.startDateTime,
+          endDateTime: window.endDateTime,
         });
         if (!updated) {
           console.warn(

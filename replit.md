@@ -54,7 +54,7 @@ An HRBP workspace for coverage and engagement across a ~600–700 person organis
 
 ## Product
 
-- **Dashboard**: Four coverage-clock counts for the current lens, ranked engagement risks
+- **Dashboard**: Four coverage-clock counts for the current lens, ranked engagement risks, plus a role-aware “I want to…” starter. Staff see a lighter Home without clocks.
 - **People**: Directory scoped to My team / department / leader / HRBP / everyone; inactive (FMLA) filter
 - **Org Chart**: Tree and box views with muted out-of-scope managers
 - **Events**: In-person events with type, reusable venues, organizers, multiple sponsors, leader roster, invitation list, attendance tracking

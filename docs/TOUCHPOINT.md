@@ -47,6 +47,12 @@ name,email,role,title,department,managerEmail,hrbpEmail,isHrbp,homeCity,homeStat
 
 Tree list plus a box layout. Out-of-scope managers stay visible but muted, labeled with their HRBP. Inactive managers are skipped so FMLA does not orphan the tree.
 
+## Home
+
+Coverage is the HRBP/leader landing page: four clocks for the current lens, then overdue people. Under the subtitle, **I want to…** is a short list of job starters (close a gap, log a 1:1, find someone, org chart, cover another HRBP). It is not a command palette and not a role picker.
+
+Staff land on a lighter Home with find / org chart / my profile only — they do not get coverage-gap chips. Login stays a single Microsoft button.
+
 ## Permissions
 
 - `admin` — departments, settings, delete person

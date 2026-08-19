@@ -178,7 +178,7 @@ function resultHref(r: FlatResult): string {
 function formatDate(d: string | null | undefined): string {
   if (!d) return '';
   try {
-    return new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    return new Date(d.includes('T') ? d : d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   } catch { return d; }
 }
 
@@ -188,7 +188,7 @@ function capitalise(s: string) {
 
 // ── Global search bar ───────────────────────────────────────────────────────────
 
-function GlobalSearch() {
+function GlobalSearch({ autoFocus = false, onNavigate }: { autoFocus?: boolean; onNavigate?: () => void }) {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
   const [activeIdx, setActiveIdx] = useState(-1);
@@ -247,7 +247,8 @@ function GlobalSearch() {
     setOpen(false);
     setActiveIdx(-1);
     inputRef.current?.blur();
-  }, [navigate]);
+    onNavigate?.();
+  }, [navigate, onNavigate]);
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (!showDropdown) return;
@@ -299,6 +300,7 @@ function GlobalSearch() {
         onChange={e => { setQuery(e.target.value); setOpen(true); }}
         onFocus={() => setOpen(true)}
         onKeyDown={handleKeyDown}
+        autoFocus={autoFocus}
         autoComplete="off"
         aria-label="Global search"
         aria-expanded={showDropdown}
@@ -407,6 +409,7 @@ export function Shell({ children }: ShellProps) {
   const { user } = useAuth();
   const role = user?.role ?? 'staff';
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
 
   const { data: settings } = useQuery<{ key: string; value: string }[]>({
     queryKey: ['settings-shell'],
@@ -490,21 +493,43 @@ export function Shell({ children }: ShellProps) {
 
       {/* ── Main content ───────────────────────────────── */}
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <header className="h-16 flex items-center justify-between px-4 md:px-6 border-b border-border bg-card/60 backdrop-blur-sm z-10 sticky top-0">
-          <div className="md:hidden flex items-center gap-3">
-            <button
-              onClick={() => setDrawerOpen(true)}
-              className="p-2 rounded-xl hover:bg-muted transition-colors text-muted-foreground"
-              aria-label="Open menu"
-            >
-              <Menu className="h-5 w-5" />
-            </button>
-            <BrandLogo orgName={orgName} />
-          </div>
+        <header className="h-16 flex items-center justify-between px-4 md:px-6 border-b border-border bg-card/60 backdrop-blur-sm z-10 sticky top-0 gap-3">
+          {mobileSearchOpen ? (
+            <div className="flex md:hidden items-center gap-2 flex-1 min-w-0">
+              <button
+                onClick={() => setMobileSearchOpen(false)}
+                className="p-2 rounded-xl hover:bg-muted transition-colors text-muted-foreground shrink-0"
+                aria-label="Close search"
+              >
+                <X className="h-5 w-5" />
+              </button>
+              <div className="flex-1 min-w-0">
+                <GlobalSearch autoFocus onNavigate={() => setMobileSearchOpen(false)} />
+              </div>
+            </div>
+          ) : (
+            <div className="md:hidden flex items-center gap-3">
+              <button
+                onClick={() => setDrawerOpen(true)}
+                className="p-2 rounded-xl hover:bg-muted transition-colors text-muted-foreground"
+                aria-label="Open menu"
+              >
+                <Menu className="h-5 w-5" />
+              </button>
+              <BrandLogo orgName={orgName} />
+            </div>
+          )}
           <div className="hidden md:flex flex-1 max-w-md">
             <GlobalSearch />
           </div>
-          <div className="flex items-center gap-2 ml-auto">
+          <div className={cn('flex items-center gap-2 ml-auto', mobileSearchOpen && 'hidden md:flex')}>
+            <button
+              className="md:hidden p-2 text-muted-foreground hover:text-foreground transition-colors rounded-xl hover:bg-muted"
+              onClick={() => setMobileSearchOpen(true)}
+              aria-label="Search"
+            >
+              <Search className="h-5 w-5" />
+            </button>
             <button className="relative p-2 text-muted-foreground hover:text-foreground transition-colors rounded-xl hover:bg-muted">
               <Bell className="h-5 w-5" />
               <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-rose-500 border-2 border-card" />
@@ -520,7 +545,7 @@ export function Shell({ children }: ShellProps) {
 
         <div className="flex-1 overflow-auto p-4 md:p-6 lg:p-8">
           <div className="max-w-6xl mx-auto space-y-4">
-            <ScopeBar />
+            {location !== '/settings' && <ScopeBar />}
             {children}
           </div>
         </div>
