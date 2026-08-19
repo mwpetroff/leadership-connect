@@ -30,6 +30,9 @@ SET department_id = d.id
 FROM departments d
 WHERE p.department IS NOT NULL AND TRIM(p.department) = d.name;
 
+-- 0007 indexed the free-text column; drop it before the column itself.
+DROP INDEX IF EXISTS people_department_trgm_idx;
+
 ALTER TABLE people DROP COLUMN IF EXISTS department;
 
 CREATE INDEX IF NOT EXISTS people_department_id_idx ON people (department_id);
@@ -37,5 +40,6 @@ CREATE INDEX IF NOT EXISTS people_hrbp_id_idx ON people (hrbp_id);
 CREATE INDEX IF NOT EXISTS people_manager_id_idx ON people (manager_id);
 CREATE INDEX IF NOT EXISTS people_status_idx ON people (status);
 CREATE INDEX IF NOT EXISTS people_is_hrbp_idx ON people (is_hrbp);
+CREATE INDEX IF NOT EXISTS departments_name_trgm_idx ON departments USING GIN (name gin_trgm_ops);
 
 ALTER TABLE virtual_meetings ADD COLUMN IF NOT EXISTS meeting_kind meeting_kind NOT NULL DEFAULT 'general';

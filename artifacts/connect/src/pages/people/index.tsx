@@ -11,8 +11,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { PersonForm, type PersonFormValues } from '@/components/forms/PersonForm';
 import { ConfirmDialog } from '@/components/forms/ConfirmDialog';
 import type { PersonRole, Person } from '@workspace/api-client-react';
-import { useQuery } from '@tanstack/react-query';
-import { useScope } from '@/lib/scope';
+import { useScope, scopeToListParams } from '@/lib/scope';
 import { useAuth } from '@/lib/auth';
 
 function RoleBadge({ role }: { role: string }) {
@@ -31,18 +30,12 @@ export default function PeopleDirectory() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { isAdmin, isHrbp } = useAuth();
-  const { queryString } = useScope();
+  const { scope } = useScope();
 
-  const { data: people, isLoading } = useQuery<Person[]>({
-    queryKey: ['people', search, roleFilter, queryString],
-    queryFn: async () => {
-      const params = new URLSearchParams(queryString);
-      if (search) params.set('search', search);
-      if (roleFilter) params.set('role', roleFilter);
-      const res = await fetch(`${import.meta.env.BASE_URL}api/people?${params}`, { credentials: 'include' });
-      if (!res.ok) throw new Error('Failed to load people');
-      return res.json();
-    },
+  const { data: people, isLoading } = useListPeople({
+    search: search || undefined,
+    role: roleFilter,
+    ...scopeToListParams(scope),
   });
 
   const createPerson = useCreatePerson({
@@ -80,12 +73,12 @@ export default function PeopleDirectory() {
   });
 
   const handleCreate = (values: PersonFormValues) => {
-    createPerson.mutate({ data: values as any });
+    createPerson.mutate({ data: values });
   };
 
   const handleEdit = (values: PersonFormValues) => {
     if (!editPerson) return;
-    updatePerson.mutate({ id: editPerson.id, data: values as any });
+    updatePerson.mutate({ id: editPerson.id, data: values });
   };
 
   return (

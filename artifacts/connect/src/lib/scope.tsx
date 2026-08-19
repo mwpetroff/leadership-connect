@@ -60,6 +60,23 @@ export function scopeToQuery(scope: ScopeState): Record<string, string> {
   return q;
 }
 
+/** Query params matching generated list/dashboard/coverage hooks. */
+export function scopeToListParams(scope: ScopeState): {
+  lens: Lens;
+  departmentIds?: string;
+  leaderId?: number;
+  hrbpId?: number;
+  includeInactive?: boolean;
+} {
+  return {
+    lens: scope.lens,
+    departmentIds: scope.departmentIds.length ? scope.departmentIds.join(",") : undefined,
+    leaderId: scope.leaderId ?? undefined,
+    hrbpId: scope.hrbpId ?? undefined,
+    includeInactive: scope.includeInactive || undefined,
+  };
+}
+
 export function ScopeProvider({ children }: { children: ReactNode }) {
   const [scope, setScopeState] = useState<ScopeState>(() =>
     typeof window === "undefined" ? DEFAULT : load(),

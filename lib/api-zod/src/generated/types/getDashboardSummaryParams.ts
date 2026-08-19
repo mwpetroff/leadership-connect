@@ -10,11 +10,8 @@ import type { HrbpIdParameter } from './hrbpIdParameter';
 import type { IncludeInactiveParameter } from './includeInactiveParameter';
 import type { LeaderIdParameter } from './leaderIdParameter';
 import type { LensParameter } from './lensParameter';
-import type { ListPeopleRole } from './listPeopleRole';
 
-export type ListPeopleParams = {
-role?: ListPeopleRole;
-search?: string;
+export type GetDashboardSummaryParams = {
 lens?: LensParameter;
 /**
  * Comma-separated department ids (departments lens)

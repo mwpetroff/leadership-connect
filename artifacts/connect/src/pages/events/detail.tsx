@@ -1263,17 +1263,17 @@ export default function EventDetail() {
             ...values,
             state:   values.state ? values.state.toUpperCase() : undefined,
             endDate: values.endDate || undefined,
-          } as any,
+          },
         })}
         isPending={updateEvent.isPending}
-        defaultValues={event as any}
+        defaultValues={event}
         mode="edit"
       />
 
       <PersonPicker
         open={showInviteStaff}
         onClose={() => setShowInviteStaff(false)}
-        onSelect={(person) => createInvitation.mutate({ id: eventId, data: { personId: person.id, createCalendarEvent: calendarInvite } } as any)}
+        onSelect={(person) => createInvitation.mutate({ id: eventId, data: { personId: person.id, createCalendarEvent: calendarInvite } })}
         title="Invite Staff to Event"
         description="Select a staff member to invite. Already-invited staff are excluded."
         excludeIds={invitedIds}

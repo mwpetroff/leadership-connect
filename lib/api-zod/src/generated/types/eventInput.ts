@@ -11,13 +11,14 @@ export interface EventInput {
   /** @minLength 1 */
   name: string;
   description?: string;
-  /** @minLength 1 */
-  location: string;
-  /** @minLength 1 */
-  city: string;
-  /** @minLength 1 */
-  state: string;
+  location?: string;
+  city?: string;
+  state?: string;
   startDate: Date;
   endDate?: Date;
   eventType: EventInputEventType;
+  venueId?: number;
+  eveningVenueId?: number;
+  organizerId?: number;
+  sponsorIds?: number[];
 }

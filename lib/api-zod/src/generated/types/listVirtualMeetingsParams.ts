@@ -5,8 +5,21 @@
  * Leadership Engagement Platform API
  * OpenAPI spec version: 0.1.0
  */
+import type { DepartmentIdsParameter } from './departmentIdsParameter';
+import type { HrbpIdParameter } from './hrbpIdParameter';
+import type { IncludeInactiveParameter } from './includeInactiveParameter';
+import type { LeaderIdParameter } from './leaderIdParameter';
+import type { LensParameter } from './lensParameter';
 import type { ListVirtualMeetingsStatus } from './listVirtualMeetingsStatus';
 
 export type ListVirtualMeetingsParams = {
 status?: ListVirtualMeetingsStatus;
+lens?: LensParameter;
+/**
+ * Comma-separated department ids (departments lens)
+ */
+departmentIds?: DepartmentIdsParameter;
+leaderId?: LeaderIdParameter;
+hrbpId?: HrbpIdParameter;
+includeInactive?: IncludeInactiveParameter;
 };

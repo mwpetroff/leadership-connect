@@ -15,7 +15,6 @@ These items are accepted and waiting for implementation:
 - Let meetings be scheduled at a specific time, not always 10 AM UTC
 - Make search work on mobile so staff can find anyone from their phone
 - Confirm the briefing endpoint stays fast as events get larger
-- Re-run OpenAPI codegen (`pnpm --filter @workspace/api-spec run codegen`) so generated hooks include lens params, `meetingKind`, and department CRUD (frontend currently uses fetch / extra query keys)
 
 ## Proposed work
 
@@ -29,6 +28,7 @@ These items are accepted and waiting for implementation:
 
 ## Recently completed
 
+- OpenAPI codegen for lens params, `meetingKind`, department CRUD, event venues/sponsors, and coverage dashboard types
 - Touchpoint HRBP workspace: departments, explicit HRBP assignment, session lenses, org chart (tree + boxes), four coverage clocks
 - Department parent (division) picker in Settings
 - Suggestions Hub coverage-gap list (`GET /suggestions/coverage`)

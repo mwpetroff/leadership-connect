@@ -9,6 +9,34 @@ export interface HealthStatus {
   status: string;
 }
 
+export interface Department {
+  id: number;
+  name: string;
+  /** @nullable */
+  parentId?: number | null;
+  /** @nullable */
+  leadershipOneOnOneDays?: number | null;
+  /** @nullable */
+  skipLevelDays?: number | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface DepartmentInput {
+  name?: string;
+  parentId?: number | null;
+  leadershipOneOnOneDays?: number | null;
+  skipLevelDays?: number | null;
+}
+
+export type PersonStatus = typeof PersonStatus[keyof typeof PersonStatus];
+
+
+export const PersonStatus = {
+  active: 'active',
+  inactive: 'inactive',
+} as const;
+
 export type PersonRole = typeof PersonRole[keyof typeof PersonRole];
 
 
@@ -24,16 +52,39 @@ export interface Person {
   email: string;
   /** @nullable */
   title?: string | null;
-  /** @nullable */
+  /**
+     * Department display name (derived from departmentId)
+     * @nullable
+     */
   department?: string | null;
+  /** @nullable */
+  departmentId?: number | null;
+  /** @nullable */
+  hrbpId?: number | null;
+  /** @nullable */
+  hrbpName?: string | null;
+  /** @nullable */
+  managerName?: string | null;
+  isHrbp?: boolean;
+  status?: PersonStatus;
   role: PersonRole;
   homeCity: string;
   homeState: string;
+  /** @nullable */
+  managerId?: number | null;
   /** @nullable */
   notes?: string | null;
   createdAt: string;
   updatedAt?: string;
 }
+
+export type PersonInputStatus = typeof PersonInputStatus[keyof typeof PersonInputStatus];
+
+
+export const PersonInputStatus = {
+  active: 'active',
+  inactive: 'inactive',
+} as const;
 
 export type PersonInputRole = typeof PersonInputRole[keyof typeof PersonInputRole];
 
@@ -49,14 +100,28 @@ export interface PersonInput {
   name: string;
   email: string;
   title?: string;
+  /** Department name; resolved to departmentId. Unknown names are rejected. */
   department?: string;
+  departmentId?: number | null;
+  hrbpId?: number | null;
+  isHrbp?: boolean;
+  status?: PersonInputStatus;
   role: PersonInputRole;
   /** @minLength 1 */
   homeCity: string;
   /** @minLength 1 */
   homeState: string;
+  managerId?: number | null;
   notes?: string;
 }
+
+export type PersonUpdateStatus = typeof PersonUpdateStatus[keyof typeof PersonUpdateStatus];
+
+
+export const PersonUpdateStatus = {
+  active: 'active',
+  inactive: 'inactive',
+} as const;
 
 export type PersonUpdateRole = typeof PersonUpdateRole[keyof typeof PersonUpdateRole];
 
@@ -73,9 +138,14 @@ export interface PersonUpdate {
   email?: string;
   title?: string;
   department?: string;
+  departmentId?: number | null;
+  hrbpId?: number | null;
+  isHrbp?: boolean;
+  status?: PersonUpdateStatus;
   role?: PersonUpdateRole;
   homeCity?: string;
   homeState?: string;
+  managerId?: number | null;
   notes?: string;
 }
 
@@ -101,6 +171,28 @@ export const EventEventType = {
   other: 'other',
 } as const;
 
+export interface VenueSummary {
+  id: number;
+  name: string;
+  address: string;
+  city: string;
+  state: string;
+  /** @nullable */
+  zipCode?: string | null;
+  /** @nullable */
+  webLink?: string | null;
+  /** @nullable */
+  notes?: string | null;
+}
+
+export interface EventPersonSummary {
+  id: number;
+  name: string;
+  /** @nullable */
+  title?: string | null;
+  role: string;
+}
+
 export interface Event {
   id: number;
   name: string;
@@ -113,6 +205,16 @@ export interface Event {
   /** @nullable */
   endDate?: string | null;
   eventType: EventEventType;
+  /** @nullable */
+  venueId?: number | null;
+  /** @nullable */
+  eveningVenueId?: number | null;
+  /** @nullable */
+  organizerId?: number | null;
+  venue?: VenueSummary;
+  eveningVenue?: VenueSummary;
+  sponsors?: EventPersonSummary[];
+  organizer?: EventPersonSummary;
   leaderCount?: number;
   inviteeCount?: number;
   attendeeCount?: number;
@@ -144,6 +246,19 @@ export const VirtualMeetingStatus = {
   cancelled: 'cancelled',
 } as const;
 
+/**
+ * Coverage-clock classification. general is the legacy default.
+ */
+export type VirtualMeetingMeetingKind = typeof VirtualMeetingMeetingKind[keyof typeof VirtualMeetingMeetingKind];
+
+
+export const VirtualMeetingMeetingKind = {
+  general: 'general',
+  hrbp_1on1: 'hrbp_1on1',
+  leader_1on1: 'leader_1on1',
+  skip_level: 'skip_level',
+} as const;
+
 export interface VirtualMeeting {
   id: number;
   title: string;
@@ -166,6 +281,8 @@ export interface VirtualMeeting {
      * @nullable
      */
   graphMeetingId?: string | null;
+  /** Coverage-clock classification. general is the legacy default. */
+  meetingKind?: VirtualMeetingMeetingKind;
   createdAt: string;
   updatedAt?: string;
 }
@@ -178,6 +295,15 @@ export interface PersonEngagement {
   daysSinceLastTouchpoint: number | null;
   totalInPersonAttended?: number;
   totalVirtualCompleted?: number;
+}
+
+export interface EventSponsorInput {
+  personId: number;
+}
+
+export interface EventSponsor {
+  eventId: number;
+  personId: number;
 }
 
 export type EventInputEventType = typeof EventInputEventType[keyof typeof EventInputEventType];
@@ -196,15 +322,16 @@ export interface EventInput {
   /** @minLength 1 */
   name: string;
   description?: string;
-  /** @minLength 1 */
-  location: string;
-  /** @minLength 1 */
-  city: string;
-  /** @minLength 1 */
-  state: string;
+  location?: string;
+  city?: string;
+  state?: string;
   startDate: string;
   endDate?: string;
   eventType: EventInputEventType;
+  venueId?: number;
+  eveningVenueId?: number;
+  organizerId?: number;
+  sponsorIds?: number[];
 }
 
 export type EventUpdateEventType = typeof EventUpdateEventType[keyof typeof EventUpdateEventType];
@@ -229,6 +356,12 @@ export interface EventUpdate {
   startDate?: string;
   endDate?: string;
   eventType?: EventUpdateEventType;
+  /** @nullable */
+  venueId?: number | null;
+  /** @nullable */
+  eveningVenueId?: number | null;
+  /** @nullable */
+  organizerId?: number | null;
 }
 
 export interface EventLeader {
@@ -309,6 +442,16 @@ export const VirtualMeetingInputStatus = {
   cancelled: 'cancelled',
 } as const;
 
+export type VirtualMeetingInputMeetingKind = typeof VirtualMeetingInputMeetingKind[keyof typeof VirtualMeetingInputMeetingKind];
+
+
+export const VirtualMeetingInputMeetingKind = {
+  general: 'general',
+  hrbp_1on1: 'hrbp_1on1',
+  leader_1on1: 'leader_1on1',
+  skip_level: 'skip_level',
+} as const;
+
 export interface VirtualMeetingInput {
   /** @minLength 1 */
   title: string;
@@ -316,6 +459,7 @@ export interface VirtualMeetingInput {
   status?: VirtualMeetingInputStatus;
   notes?: string;
   hostId?: number;
+  meetingKind?: VirtualMeetingInputMeetingKind;
 }
 
 export type VirtualMeetingUpdateStatus = typeof VirtualMeetingUpdateStatus[keyof typeof VirtualMeetingUpdateStatus];
@@ -328,6 +472,16 @@ export const VirtualMeetingUpdateStatus = {
   cancelled: 'cancelled',
 } as const;
 
+export type VirtualMeetingUpdateMeetingKind = typeof VirtualMeetingUpdateMeetingKind[keyof typeof VirtualMeetingUpdateMeetingKind];
+
+
+export const VirtualMeetingUpdateMeetingKind = {
+  general: 'general',
+  hrbp_1on1: 'hrbp_1on1',
+  leader_1on1: 'leader_1on1',
+  skip_level: 'skip_level',
+} as const;
+
 export interface VirtualMeetingUpdate {
   /** @minLength 1 */
   title?: string;
@@ -335,6 +489,7 @@ export interface VirtualMeetingUpdate {
   status?: VirtualMeetingUpdateStatus;
   notes?: string;
   hostId?: number;
+  meetingKind?: VirtualMeetingUpdateMeetingKind;
 }
 
 export interface VirtualMeetingParticipant {
@@ -375,6 +530,42 @@ export interface RoleEngagement {
   neverEngaged: number;
 }
 
+export type CoverageGapKind = typeof CoverageGapKind[keyof typeof CoverageGapKind];
+
+
+export const CoverageGapKind = {
+  hrbp_1on1: 'hrbp_1on1',
+  leader_1on1: 'leader_1on1',
+  skip_level: 'skip_level',
+  onsite_leadership: 'onsite_leadership',
+} as const;
+
+export interface CoverageGap {
+  kind: CoverageGapKind;
+  /** @nullable */
+  daysSince?: number | null;
+  thresholdDays: number;
+  overdue: boolean;
+  notApplicable: boolean;
+  label?: string;
+}
+
+export interface CoveragePersonRow {
+  person?: Person;
+  overdueCount: number;
+  gaps: CoverageGap[];
+}
+
+export type DashboardCoverageCounts = {[key: string]: number};
+
+export type DashboardCoverageLabels = {[key: string]: string};
+
+export interface DashboardCoverage {
+  counts?: DashboardCoverageCounts;
+  labels?: DashboardCoverageLabels;
+  people?: CoveragePersonRow[];
+}
+
 export interface DashboardSummary {
   totalPeople: number;
   totalEvents: number;
@@ -386,6 +577,7 @@ export interface DashboardSummary {
   recentActivity: ActivityItem[];
   engagementByRole: RoleEngagement[];
   needsTouchpoint: Person[];
+  coverage?: DashboardCoverage;
 }
 
 export interface Setting {
@@ -429,6 +621,18 @@ export interface AuditLogPage {
   totalPages: number;
 }
 
+export interface CoverageCadences {
+  hrbp_1on1?: number;
+  leader_1on1?: number;
+  skip_level?: number;
+  onsite_leadership?: number;
+}
+
+export interface CoverageSuggestions {
+  org?: CoverageCadences;
+  people: CoveragePersonRow[];
+}
+
 export interface SuggestedPerson {
   person: Person;
   reason: string;
@@ -452,9 +656,36 @@ export interface VirtualSuggestion {
   suggestedLeaders?: Person[];
 }
 
+export type LensParameter = typeof LensParameter[keyof typeof LensParameter];
+
+
+export const LensParameter = {
+  my_team: 'my_team',
+  departments: 'departments',
+  leader: 'leader',
+  hrbp: 'hrbp',
+  all: 'all',
+} as const;
+
+export type DepartmentIdsParameter = string;
+
+export type LeaderIdParameter = number;
+
+export type HrbpIdParameter = number;
+
+export type IncludeInactiveParameter = boolean;
+
 export type ListPeopleParams = {
 role?: ListPeopleRole;
 search?: string;
+lens?: LensParameter;
+/**
+ * Comma-separated department ids (departments lens)
+ */
+departmentIds?: DepartmentIdsParameter;
+leaderId?: LeaderIdParameter;
+hrbpId?: HrbpIdParameter;
+includeInactive?: IncludeInactiveParameter;
 };
 
 export type ListPeopleRole = typeof ListPeopleRole[keyof typeof ListPeopleRole];
@@ -469,10 +700,26 @@ export const ListPeopleRole = {
 export type ListEventsParams = {
 upcoming?: boolean;
 type?: string;
+lens?: LensParameter;
+/**
+ * Comma-separated department ids (departments lens)
+ */
+departmentIds?: DepartmentIdsParameter;
+leaderId?: LeaderIdParameter;
+hrbpId?: HrbpIdParameter;
+includeInactive?: IncludeInactiveParameter;
 };
 
 export type ListVirtualMeetingsParams = {
 status?: ListVirtualMeetingsStatus;
+lens?: LensParameter;
+/**
+ * Comma-separated department ids (departments lens)
+ */
+departmentIds?: DepartmentIdsParameter;
+leaderId?: LeaderIdParameter;
+hrbpId?: HrbpIdParameter;
+includeInactive?: IncludeInactiveParameter;
 };
 
 export type ListVirtualMeetingsStatus = typeof ListVirtualMeetingsStatus[keyof typeof ListVirtualMeetingsStatus];
@@ -497,5 +744,27 @@ page?: number;
 limit?: number;
 resourceType?: string;
 actorId?: string;
+};
+
+export type GetDashboardSummaryParams = {
+lens?: LensParameter;
+/**
+ * Comma-separated department ids (departments lens)
+ */
+departmentIds?: DepartmentIdsParameter;
+leaderId?: LeaderIdParameter;
+hrbpId?: HrbpIdParameter;
+includeInactive?: IncludeInactiveParameter;
+};
+
+export type GetCoverageSuggestionsParams = {
+lens?: LensParameter;
+/**
+ * Comma-separated department ids (departments lens)
+ */
+departmentIds?: DepartmentIdsParameter;
+leaderId?: LeaderIdParameter;
+hrbpId?: HrbpIdParameter;
+includeInactive?: IncludeInactiveParameter;
 };
 

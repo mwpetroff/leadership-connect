@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { PersonUpdateRole } from './personUpdateRole';
+import type { PersonUpdateStatus } from './personUpdateStatus';
 
 export interface PersonUpdate {
   /** @minLength 1 */
@@ -13,8 +14,13 @@ export interface PersonUpdate {
   email?: string;
   title?: string;
   department?: string;
+  departmentId?: number | null;
+  hrbpId?: number | null;
+  isHrbp?: boolean;
+  status?: PersonUpdateStatus;
   role?: PersonUpdateRole;
   homeCity?: string;
   homeState?: string;
+  managerId?: number | null;
   notes?: string;
 }

@@ -7,11 +7,12 @@ import { Video, Calendar, User, Plus, Users } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData } from '@tanstack/react-query';
 import { useToast } from '@/components/ui/use-toast';
 import { VirtualMeetingForm, type VirtualMeetingFormValues } from '@/components/forms/VirtualMeetingForm';
 import type { ListVirtualMeetingsStatus } from '@workspace/api-client-react';
 import { useAuth } from '@/lib/auth';
-import { useScope, scopeToQuery } from '@/lib/scope';
+import { useScope, scopeToListParams } from '@/lib/scope';
 
 export default function VirtualMeetings() {
   const [statusFilter, setStatusFilter] = useState<ListVirtualMeetingsStatus | undefined>();
@@ -22,9 +23,10 @@ export default function VirtualMeetings() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
+  const meetingListParams = { status: statusFilter, ...scopeToListParams(scope) };
   const { data: meetings, isLoading } = useListVirtualMeetings(
-    { status: statusFilter, ...scopeToQuery(scope) } as any,
-    { query: { keepPreviousData: true } as any }
+    meetingListParams,
+    { query: { placeholderData: keepPreviousData, queryKey: getListVirtualMeetingsQueryKey(meetingListParams) } },
   );
 
   const createMeeting = useCreateVirtualMeeting({
@@ -47,7 +49,7 @@ export default function VirtualMeetings() {
         hostId: values.hostId ? parseInt(values.hostId) : undefined,
         notes: values.notes || undefined,
         meetingKind: values.meetingKind,
-      } as any,
+      },
     });
   };
 

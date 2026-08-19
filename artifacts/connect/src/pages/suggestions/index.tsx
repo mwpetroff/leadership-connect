@@ -7,15 +7,16 @@ import {
   useBulkCreateInvitations,
   useCreateVirtualMeeting,
   useAddVirtualMeetingParticipant,
+  useGetCoverageSuggestions,
   getGetMeetupSuggestionsQueryKey,
   getGetVirtualSuggestionsQueryKey
 } from '@workspace/api-client-react';
 import { MapPin, Calendar, Video, ArrowRight, UserPlus, Zap, Check, UsersRound, X } from 'lucide-react';
 import { format } from 'date-fns';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/lib/auth';
-import { useScope } from '@/lib/scope';
+import { useScope, scopeToListParams } from '@/lib/scope';
 
 // ── Invite-all confirmation modal ─────────────────────────────────────────────
 
@@ -70,22 +71,9 @@ export default function SuggestionsHub() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { isLeader } = useAuth();
-  const { queryString } = useScope();
+  const { scope } = useScope();
 
-  const { data: coverage } = useQuery<{
-    people: Array<{
-      person: { id: number; name: string; title?: string | null } | null;
-      overdueCount: number;
-      gaps: Array<{ kind: string; overdue: boolean; notApplicable: boolean; daysSince: number | null }>;
-    }>;
-  }>({
-    queryKey: ['suggestions-coverage', queryString],
-    queryFn: async () => {
-      const res = await fetch(`${import.meta.env.BASE_URL}api/suggestions/coverage?${queryString}`, { credentials: 'include' });
-      if (!res.ok) throw new Error('Failed to load coverage suggestions');
-      return res.json();
-    },
-  });
+  const { data: coverage } = useGetCoverageSuggestions(scopeToListParams(scope));
 
   // Track which event card has the "Invite all" confirmation open.
   const [inviteAllTarget, setInviteAllTarget] = useState<{
@@ -129,7 +117,7 @@ export default function SuggestionsHub() {
   const handleInvite = (eventId: number, personId: number) => {
     createInvite.mutate({
       id: eventId,
-      data: { personId, notes: 'Suggested from meetup hub', createCalendarEvent: true } as any,
+      data: { personId, notes: 'Suggested from meetup hub', createCalendarEvent: true },
     });
   };
 
@@ -153,9 +141,9 @@ export default function SuggestionsHub() {
           status: 'suggested',
           hostId: leaderId,
           notes: 'Suggested touchpoint from the hub',
-        } as any,
+        },
       });
-      await addParticipant.mutateAsync({ id: (meeting as any).id, data: { personId } });
+      await addParticipant.mutateAsync({ id: meeting.id, data: { personId } });
       toast({ title: 'Check-in suggested', description: 'A virtual touchpoint has been queued.' });
       queryClient.invalidateQueries({ queryKey: getGetVirtualSuggestionsQueryKey() });
     } catch {

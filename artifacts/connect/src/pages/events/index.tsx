@@ -8,10 +8,11 @@ import { Calendar, MapPin, Plus } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData } from '@tanstack/react-query';
 import { useToast } from '@/components/ui/use-toast';
 import { EventWizard, type WizardResult } from '@/components/forms/EventWizard';
 import { useAuth } from '@/lib/auth';
-import { useScope, scopeToQuery } from '@/lib/scope';
+import { useScope, scopeToListParams } from '@/lib/scope';
 
 export default function EventsList() {
   const [filterUpcoming, setFilterUpcoming] = useState(true);
@@ -23,9 +24,10 @@ export default function EventsList() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
+  const eventListParams = { upcoming: filterUpcoming ? true : undefined, ...scopeToListParams(scope) };
   const { data: events, isLoading } = useListEvents(
-    { upcoming: filterUpcoming ? true : undefined, ...scopeToQuery(scope) } as any,
-    { query: { keepPreviousData: true } as any }
+    eventListParams,
+    { query: { placeholderData: keepPreviousData, queryKey: getListEventsQueryKey(eventListParams) } },
   );
 
   const createEvent = useCreateEvent({ mutation: {} });
@@ -51,9 +53,9 @@ export default function EventsList() {
           eveningVenueId: result.eveningVenueId,
           sponsorIds:     result.sponsorIds,
           organizerId:    result.organizerId,
-        } as any,
+        },
       });
-      const eventId = (created as any).id as number;
+      const eventId = created.id;
 
       // Add leaders + invite attendees concurrently
       await Promise.all([

@@ -188,6 +188,11 @@ paths:
           name: type
           schema:
             type: string
+        - $ref: "#/components/parameters/Lens"
+        - $ref: "#/components/parameters/DepartmentIds"
+        - $ref: "#/components/parameters/LeaderId"
+        - $ref: "#/components/parameters/HrbpId"
+        - $ref: "#/components/parameters/IncludeInactive"
       responses:
         "200":
           description: List of events
@@ -343,6 +348,72 @@ paths:
         "404":
           description: Not found
 
+  /events/{eventId}/sponsors:
+    get:
+      operationId: listEventSponsors
+      tags: [events]
+      summary: List sponsors for an event
+      parameters:
+        - in: path
+          name: eventId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Sponsors
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EventPersonSummary"
+    post:
+      operationId: addEventSponsor
+      tags: [events]
+      summary: Add a sponsor to an event
+      parameters:
+        - in: path
+          name: eventId
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EventSponsorInput"
+      responses:
+        "201":
+          description: Sponsor added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventSponsor"
+        "404":
+          description: Event not found
+
+  /events/{eventId}/sponsors/{personId}:
+    delete:
+      operationId: removeEventSponsor
+      tags: [events]
+      summary: Remove a sponsor from an event
+      parameters:
+        - in: path
+          name: eventId
+          required: true
+          schema:
+            type: integer
+        - in: path
+          name: personId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Removed
+
   # ─── Invitations ──────────────────────────────────────────────────────────
   /events/{id}/invitations:
     get:
@@ -488,6 +559,11 @@ paths:
           schema:
             type: string
             enum: [suggested, scheduled, completed, cancelled]
+        - $ref: "#/components/parameters/Lens"
+        - $ref: "#/components/parameters/DepartmentIds"
+        - $ref: "#/components/parameters/LeaderId"
+        - $ref: "#/components/parameters/HrbpId"
+        - $ref: "#/components/parameters/IncludeInactive"
       responses:
         "200":
           description: List of virtual meetings
@@ -785,8 +861,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                additionalProperties: true
+                $ref: "#/components/schemas/CoverageSuggestions"
 
   /departments:
     get:
@@ -1079,6 +1154,56 @@ components:
           type: integer
 
     # ─── Event ──────────────────────────────────────────────────────────────
+    EventPersonSummary:
+      type: object
+      required: [id, name, role]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        title:
+          type: ["string", "null"]
+        role:
+          type: string
+
+    VenueSummary:
+      type: object
+      required: [id, name, address, city, state]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        address:
+          type: string
+        city:
+          type: string
+        state:
+          type: string
+        zipCode:
+          type: ["string", "null"]
+        webLink:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+
+    EventSponsorInput:
+      type: object
+      required: [personId]
+      properties:
+        personId:
+          type: integer
+
+    EventSponsor:
+      type: object
+      required: [eventId, personId]
+      properties:
+        eventId:
+          type: integer
+        personId:
+          type: integer
+
     Event:
       type: object
       required: [id, name, location, city, state, startDate, eventType, createdAt]
@@ -1104,6 +1229,22 @@ components:
         eventType:
           type: string
           enum: [summit, conference, marketing, leadership, regional, other]
+        venueId:
+          type: ["integer", "null"]
+        eveningVenueId:
+          type: ["integer", "null"]
+        organizerId:
+          type: ["integer", "null"]
+        venue:
+          $ref: "#/components/schemas/VenueSummary"
+        eveningVenue:
+          $ref: "#/components/schemas/VenueSummary"
+        sponsors:
+          type: array
+          items:
+            $ref: "#/components/schemas/EventPersonSummary"
+        organizer:
+          $ref: "#/components/schemas/EventPersonSummary"
         leaderCount:
           type: integer
         inviteeCount:
@@ -1116,7 +1257,7 @@ components:
 
     EventInput:
       type: object
-      required: [name, location, city, state, startDate, eventType]
+      required: [name, startDate, eventType]
       properties:
         name:
           type: string
@@ -1125,13 +1266,10 @@ components:
           type: string
         location:
           type: string
-          minLength: 1
         city:
           type: string
-          minLength: 1
         state:
           type: string
-          minLength: 1
         startDate:
           type: string
           format: date
@@ -1141,6 +1279,16 @@ components:
         eventType:
           type: string
           enum: [summit, conference, marketing, leadership, regional, other]
+        venueId:
+          type: integer
+        eveningVenueId:
+          type: integer
+        organizerId:
+          type: integer
+        sponsorIds:
+          type: array
+          items:
+            type: integer
 
     EventUpdate:
       type: object
@@ -1165,6 +1313,12 @@ components:
         eventType:
           type: string
           enum: [summit, conference, marketing, leadership, regional, other]
+        venueId:
+          type: ["integer", "null"]
+        eveningVenueId:
+          type: ["integer", "null"]
+        organizerId:
+          type: ["integer", "null"]
 
     EventLeader:
       type: object
@@ -1310,6 +1464,10 @@ components:
         graphMeetingId:
           type: ["string", "null"]
           description: "Microsoft Graph online meeting ID for cancellation."
+        meetingKind:
+          type: string
+          enum: [general, hrbp_1on1, leader_1on1, skip_level]
+          description: Coverage-clock classification. general is the legacy default.
         createdAt:
           type: string
           format: date-time
@@ -1334,6 +1492,9 @@ components:
           type: string
         hostId:
           type: integer
+        meetingKind:
+          type: string
+          enum: [general, hrbp_1on1, leader_1on1, skip_level]
 
     VirtualMeetingUpdate:
       type: object
@@ -1351,6 +1512,9 @@ components:
           type: string
         hostId:
           type: integer
+        meetingKind:
+          type: string
+          enum: [general, hrbp_1on1, leader_1on1, skip_level]
 
     VirtualMeetingParticipant:
       type: object
@@ -1402,6 +1566,24 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Person"
+        coverage:
+          $ref: "#/components/schemas/DashboardCoverage"
+
+    DashboardCoverage:
+      type: object
+      properties:
+        counts:
+          type: object
+          additionalProperties:
+            type: integer
+        labels:
+          type: object
+          additionalProperties:
+            type: string
+        people:
+          type: array
+          items:
+            $ref: "#/components/schemas/CoveragePersonRow"
 
     ActivityItem:
       type: object
@@ -1497,6 +1679,63 @@ components:
           type: integer
 
     # ─── Suggestions ─────────────────────────────────────────────────────────
+    CoverageGapKind:
+      type: string
+      enum: [hrbp_1on1, leader_1on1, skip_level, onsite_leadership]
+
+    CoverageGap:
+      type: object
+      required: [kind, thresholdDays, overdue, notApplicable]
+      properties:
+        kind:
+          $ref: "#/components/schemas/CoverageGapKind"
+        daysSince:
+          type: ["integer", "null"]
+        thresholdDays:
+          type: integer
+        overdue:
+          type: boolean
+        notApplicable:
+          type: boolean
+        label:
+          type: string
+
+    CoveragePersonRow:
+      type: object
+      required: [overdueCount, gaps]
+      properties:
+        person:
+          $ref: "#/components/schemas/Person"
+        overdueCount:
+          type: integer
+        gaps:
+          type: array
+          items:
+            $ref: "#/components/schemas/CoverageGap"
+
+    CoverageCadences:
+      type: object
+      properties:
+        hrbp_1on1:
+          type: integer
+        leader_1on1:
+          type: integer
+        skip_level:
+          type: integer
+        onsite_leadership:
+          type: integer
+
+    CoverageSuggestions:
+      type: object
+      required: [people]
+      properties:
+        org:
+          $ref: "#/components/schemas/CoverageCadences"
+        people:
+          type: array
+          items:
+            $ref: "#/components/schemas/CoveragePersonRow"
+
     MeetupSuggestion:
       type: object
       required: [event, suggestedPeople, leaders]
